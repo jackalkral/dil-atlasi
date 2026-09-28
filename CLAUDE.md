@@ -27,14 +27,18 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - İlerleme ölçüsü: kutu ≥ 2 (7+ gün aralık) kartların hatırlama oranı `dil-atlasi-srs.stats[dil] = {ok, n}`.
 - `dil-atlasi-sifirlama-2026-09` tek seferlik sıfırlama bayrağıdır; kaldırma, yoksa kullanıcının verisi yeniden silinir.
 - Sekmeler bağlama göre: Bugün (iş molası), Dinle (yürüyüş, eller serbest), İzle (akşam TV), İlerleme.
-- Bugün aşamaları görev kodlarına bağlı: `review` = tekrar kartları, `lesson` = kelime + cümle + cümle kurma, `shadow` = ses çalışması (bitince kendiliğinden işaretlenir), `speak` = konuşma + ChatGPT/Claude.
+- Bugün aşamaları görev kodlarına bağlı: `review` = tekrar kartları, `lesson` = kelime + cümle + cümle kurma, `shadow` = ses çalışması (bitince kendiliğinden işaretlenir), `speak` = telaffuz testi + konuşma + ChatGPT/Claude.
 - Ders günü = o dilde bugünden önce çalışılan gün sayısı + 1 (`getLessonDay`); ayrı anahtar yoktur.
 - Aralıklı tekrar `dil-atlasi-srs` (v2); kart kimliği `dil:dersSırası:w|s + sıra`. Derslerin kelime/cümle sırasını değiştirme, yenisini sona ekle.
 - `speechSynthesis` ekran kilitlenince durur (özellikle iOS). Dinle sekmesi Wake Lock ile ekranı açık tutmaya çalışır; ekran kilitli dinleme için podcast bağlantıları verilir. Kalıcı çözüm: derleme sırasında üretilmiş tek parça ses dosyaları + Media Session API (ses lisansı ve boyut değerlendirilmeli).
 - Şema sürümü `dil-atlasi-surum` (şu an 2, anahtar yoksa 1). Yeni veri biçimi gerekince `SCHEMA` artır ve `MIGRATIONS[yeniSürüm]` adımı ekle; adımlar veri silmemeli. Geçişten önce kayıtlar `dil-atlasi-goc-yedegi`'ne kopyalanır; daha yeni sürümün verisine dokunulmaz.
 - Haftalık plan `dil-atlasi-plan` (`{v:1, langs:{en:{days:[0-6], goal:2|3|4}}}`, 0 = Pazar): yalnızca hatırlatır (dil düğmesinde nokta, Bugün'de ipucu, FR/IT aynı gün uyarısı); ders günü hesabını ve sırayı değiştirmez.
 - Günlük istatistik `dil-atlasi-gunluk` (`{v:1, d:{"YYYY-MM-DD":{en:{c, ok, m}}}}`; kart, bilinen kart, odak dakikası; 400 gün). Aşama sayıları `da:` anahtarlarından hesaplanır, ayrıca saklanmaz.
-- Telaffuz kaydı (Konuş adımı): mikrofon yalnızca dokununca açılır, kayıt bellekte blob olarak kalır, saklanmaz/gönderilmez, bitince mikrofon kapatılır, en fazla 10 sn. CSP'de `media-src 'self' blob:` bunun için var.
+- Türkçe seslendirme yok (kullanıcı isteği): Türkçe anlam yalnızca yazı olarak hedef metnin altında durur. Dinle sekmesindeki ses çalışması: hedef dil → ara (kullanıcı tekrar eder) → hedef dil.
+- Tek ses kaynağı: `speak()` ve `playAll()` önce `stopAudio()` çağırır; bu, `audioRun` belirtecini artırıp "Hepsini dinle" zincirini, ses çalışmasını ve çalan kaydı durdurur. Safari `cancel()` sonrasında da `onend` gönderdiği için sıralı çalan her zincir belirteci denetlemeli. Sekme değişince ses durur.
+- Telaffuz testi (Konuş adımının 1. bölümü): bugünün 8 kelimesi + 5 cümlesi; her satırda ▶ dinle, 🎙 Kaydet, ✓ Kontrol et.
+  - 🎙 Kaydet: mikrofon yalnızca dokununca açılır, kayıt bellekte blob olarak kalır, saklanmaz/gönderilmez, bitince mikrofon kapatılır, en fazla 10 sn. CSP'de `media-src 'self' blob:` bunun için var.
+  - ✓ Kontrol et: tarayıcının `SpeechRecognition` hizmeti (iPhone'da Apple, Chrome'da Google) sesi yazıya çevirir; bu ses cihaz dışına çıktığı için ilk kullanımda açık onay istenir (`dil-atlasi-tanima` = '1', İlerleme → Ses ve telaffuz'dan kapatılır). `matchWords()` hedef kelimeleri sırayı koruyarak eşleştirir (aksan/noktalama yok sayılır), yüzde ve eksik kelimeleri gösterir.
 - Yedek biçimi `schemaVersion: 2` (hatırlama ölçüsü, plan, günlük istatistik, hız eklendi); geri yükleme 1 ve 2'yi kabul eder.
 - Odak sayacı bitiş anından hesaplanır (arka planda kaymaz); tamamlanan süre günlük istatistiğe yazılır.
 - `content/*.js`, `app.js` veya `styles.css` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı (Service Worker bu dosyaları önbellekten verir).
@@ -89,7 +93,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 
 ## Kabul testi
 
-Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (88 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (99 kontrol). Her değişiklikten sonra ikisi de geçmeli.
 
 
 - Dört dil arasında geçiş yapılabiliyor.
