@@ -46,7 +46,7 @@
     let w = await load(), $ = s => w.document.querySelector(s), $$ = s => [...w.document.querySelectorAll(s)];
     check($('#lessonPill').textContent === 'Ders 1/30', 'Temiz kurulumda Ders 1/30', $('#lessonPill').textContent);
     check($('#lessonTitle').textContent === 'Selamlaşma', 'İlk ders başlığı Selamlaşma');
-    check($$('.step.open .item .pron').length === 8, 'Sekiz kelimenin Türkçe okunuşu görünüyor', $$('.step.open .item .pron').map(e => e.textContent).slice(0, 3).join(' '));
+    check($$('.step.open .item:not(.freq) .pron').length === 8, 'Sekiz kelimenin Türkçe okunuşu görünüyor', $$('.step.open .item .pron').map(e => e.textContent).slice(0, 3).join(' '));
     check(!!$('#voiceSelect') && $('#voiceSelect').options.length >= 1 && !!$('#trVoiceSelect'), 'Ses seçici var');
     check($$('.step').length === 4, '4 aşama görünüyor');
     check($$('.lang-chip').length === 4, '4 dil düğmesi var');
@@ -85,7 +85,7 @@
 
     // 4) Dinle: ses çalışması baştan sona, bitince shadow işaretlenir
     $('#tab-yuru').click(); $('#drillPlay').click();
-    for (let i = 0; i < 100 && !$('#drillL1').textContent.startsWith('Bitti'); i++) await wait(50);
+    for (let i = 0; i < 400 && !$('#drillL1').textContent.startsWith('Bitti'); i++) await wait(50);
     check($('#drillL1').textContent.startsWith('Bitti'), 'Ses çalışması tamamlandı');
     w.document.querySelector('input[name=rate][value="0.8"]').click();
     check(localStorage.getItem('dil-atlasi-rate') === '0.8', 'Konuşma hızı kaydedildi');
@@ -117,7 +117,7 @@
     const h2 = $$('.step-head'); if (h2[1].getAttribute('aria-expanded') !== 'true') h2[1].click();
     $$('.step.open .btn').find(b => b.textContent.startsWith('▶ Testi başlat')).click();
     let qn = 0; while ($$('.step.open .flash').length && qn < 40) { const f = $$('.step.open .flash').pop(); f.querySelector('.btn').click(); const b = [...f.querySelectorAll('.actions .btn')]; (qn === 0 ? b[0] : b[1]).click(); qn++; }
-    check(qn === 14 && /13 öğeyi hatırladın/.test($('.step.open')?.textContent || ''), 'Kendini sına: 13 öğe, bilinmeyen sona döndü', `tur=${qn}`);
+    check(qn === 24 && /23 öğeyi hatırladın/.test($('.step.open')?.textContent || ''), 'Kendini sına: 13 ders + 10 sık kelime, bilinmeyen sona döndü', `tur=${qn}`);
 
     // 5d) Ertesi gün hata defteri kartı tekrar kuyruğunda (text olarak)
     const nn = JSON.parse(localStorage.getItem('dil-atlasi-notlar')); Object.values(nn.items).forEach(x => x.d = day(-1)); localStorage.setItem('dil-atlasi-notlar', JSON.stringify(nn));
