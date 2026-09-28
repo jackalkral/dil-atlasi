@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v28';
+const APP_VERSION = 'v29';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
