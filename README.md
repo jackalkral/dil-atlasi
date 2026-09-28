@@ -1,96 +1,64 @@
 # Dil Atlası
 
-İngilizce, Fransızca, İtalyanca ve Almanca için ücretsiz, gizlilik odaklı kişisel öğrenme uygulaması. Proje bağımlılıksız bir Progressive Web App (PWA) olarak hazırlanmıştır.
+İngilizce, Fransızca, İtalyanca ve Almanca'yı **sıfırdan** öğrenmek için ücretsiz, gizlilik odaklı kişisel uygulama. Bağımlılıksız bir Progressive Web App (PWA); hesap, reklam, analitik veya sunucu yok.
 
-## Neler var?
+Canlı adres: https://jackalkral.github.io/dil-atlasi/
 
-- Dört dil için ayrı 12 haftalık yol haritası
-- İngilizce (A2 → B1, iş ve siber güvenlik) ve Fransızca (A0 → A1) için 30 günlük ders içeriği
-- Gerçek aralıklı tekrar: önceki derslerin cümleleri kart olur; bilinen kart 1 → 3 → 7 → 14 → 30 gün sonra tekrar gelir
-- Günlük dört blok (tekrar, dinleme, shadowing, konuşma); ana dilde 25, yan dilde 14 dakika
-- Seyahat, toplantı, iş görüşmesi ve günlük hayat konuşma görevleri + 4/3/2 akıcılık sayacı
-- Doğrulanmış ücretsiz podcast, video, haber ve iş İngilizcesi kaynakları (Dinle ve izle)
-- Yöntemlerin bilimsel dayanakları (bkz. KAYNAKLAR.md)
-- Çalışma serisi ve 28 günlük geçmiş
-- 25/45/60 dakika seçilebilen odak sayacı
-- İlerlemeyi JSON dosyası olarak yedekleme ve geri yükleme
-- Yeni sürüm hazır olduğunda "Yenile" bildirimi
-- Tarayıcının seslendirme özelliğiyle telaffuz
-- Ücretsiz öğrenme kaynakları
-- ChatGPT/Claude konuşma antrenörü komutu
-- Çevrimdışı açılış için Service Worker
-- Telefona ana ekran uygulaması olarak kurulum
-- Hesap, analitik, reklam veya haricî sunucu yok
+## Nasıl çalışır?
+
+Üstten dili seç, alttaki dört sekmeyi kullan:
+
+| Sekme | Ne zaman | İçerik |
+|---|---|---|
+| **Bugün** | İşte kısa molalarda | 4 aşamalı yol: ① Tekrar kartları ② Kelimeler + cümleler + cümle kurma ③ Dinle ve tekrar et ④ Konuş (kendi kendine + ChatGPT/Claude sesli sohbet) |
+| **Dinle** | Köpek gezdirirken, yolda | Eller serbest ses çalışması: Türkçesi → ara (sen söyle) → hedef dil ×2; podcast ve ses kursları |
+| **İzle** | Akşam TV karşısında | Seviyeye göre video/dizi önerileri, hedef dilde altyazı rehberi |
+| **İlerleme** | — | Seri, 28 gün, 30 günlük rota, odak sayacı, yöntem, yedekleme |
+
+- Her dilde aynı 30 konu (selamlaşma → kendini anlatma); her derste 8 kelime ve 5 cümle.
+- Aralıklı tekrar: önceki derslerin kelime ve cümleleri kart olur; bilinen kart 1 → 3 → 7 → 14 → 30 gün sonra döner.
+- Hangi dili ne zaman çalışacağına sen karar verirsin. Fransızca ile İtalyancayı aynı gün çalışmamak önerilir (benzer diller karışır).
 
 ## Dosya yapısı
 
 ```text
-dil-atlasi-source/
-├── index.html              # Arayüz ve uygulama mantığı
-├── lessons.js              # Ders içeriği, konuşma görevleri ve medya kaynakları (en, fr)
-├── manifest.webmanifest    # PWA tanımı
-├── sw.js                   # Çevrimdışı uygulama kabuğu
-├── icons/                  # Uygulama simgeleri
-├── KAYNAKLAR.md            # Öğrenme kaynakları ve yöntem dayanakları
-├── CLAUDE.md               # Claude ile geliştirmeye devam etmek için bağlam
-└── README.md
+index.html            # Arayüz iskeleti (sekme ve paneller)
+styles.css            # Stil
+app.js                # Uygulama mantığı
+content/{en,fr,it,de}.js  # 30'ar derslik içerik: t başlık, n ipucu, w kelimeler, p cümleler
+content/media.js      # Dinle ve İzle sekmelerinin doğrulanmış kaynakları
+sw.js                 # Çevrimdışı uygulama kabuğu ve güncelleme bildirimi
+manifest.webmanifest, icons/
+KAYNAKLAR.md          # Yöntem ve kaynak dayanakları
+CLAUDE.md             # Geliştirme bağlamı
 ```
 
 ## Yerelde çalıştırma
-
-Service Worker yalnızca HTTPS veya `localhost` üzerinde çalışır. Dosyayı doğrudan çift tıklamak yerine klasörün içinde küçük bir yerel sunucu başlatın:
 
 ```bash
 python3 -m http.server 4173
 ```
 
-Ardından `http://localhost:4173` adresini açın. Node.js tercih ediyorsanız:
-
-```bash
-npx serve .
-```
+Ardından `http://localhost:4173` adresini aç. Service Worker dosyaları önbellekten verdiği için geliştirirken tarayıcıda Service Worker'ı kaldırmak veya `sw.js` içindeki `CACHE_NAME` değerini artırmak gerekir.
 
 ## Telefona kurma
 
-### iPhone / iPad
-
-1. Siteyi Safari ile açın.
-2. Paylaş düğmesine dokunun.
-3. **Ana Ekrana Ekle** seçeneğini seçin.
-4. **Ekle** düğmesine dokunun.
-
-### Android
-
-1. Siteyi Chrome ile açın.
-2. Menüden **Uygulamayı yükle** veya **Ana ekrana ekle** seçeneğini kullanın.
+- **iPhone/iPad:** Safari → Paylaş → Ana Ekrana Ekle.
+- **Android:** Chrome menüsü → Uygulamayı yükle.
 
 ## Veri modeli ve gizlilik
 
 Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 
-- Aktif dil: `dil-atlasi-active`
-- Sayaç süresi (dakika): `dil-atlasi-timer` — `25`, `45` veya `60`
-- Aralıklı tekrar kartları: `dil-atlasi-srs` — `{ v: 1, cards: { "en:0:1": { b: kutu, d: "YYYY-MM-DD" } } }`
-- Görevler: `da:{görev}:{dil}:{YYYY-MM-DD}`
-- Dil kodları: `en`, `fr`, `it`, `de`
-- Görev kodları: `review`, `lesson`, `shadow`, `speak`
+- Aktif dil: `dil-atlasi-active` · Açık sekme: `dil-atlasi-tab`
+- Aşamalar: `da:{görev}:{dil}:{YYYY-MM-DD}` — görevler `review`, `lesson`, `shadow`, `speak`; diller `en`, `fr`, `it`, `de`
+- Sayaç süresi: `dil-atlasi-timer` (`25`, `45`, `60`)
+- Tekrar kartları: `dil-atlasi-srs` — `{ v: 2, cards: { "en:0:w3": { b: kutu, d: "YYYY-MM-DD" } } }` (w = kelime, s = cümle). Eski v1 kartlar `dil-atlasi-srs-v1` anahtarında saklanır.
 
-Ders günü ayrıca saklanmaz; o dilde bugünden önce en az bir görevin işaretlendiği gün sayısından hesaplanır. Bu yüzden bir gün atlamak dersi kaçırmaz, sadece ilerlemeyi bekletir.
+Ders günü ayrıca saklanmaz; o dilde bugünden önce çalışılan gün sayısından hesaplanır.
 
-Sunucuya kişisel veri gönderilmez. Bunun karşılığı olarak veriler cihazlar arasında eşitlenmez ve tarayıcı verileri silinirse ilerleme kaybolur; bu yüzden düzenli yedek almak önerilir.
-
-**Yedeği indir** düğmesi `{ app, schemaVersion: 1, exportedAt, settings, tasks, srs }` biçiminde bir JSON dosyası üretir. **Yedekten yükle** dosyayı doğrular, yalnızca geçerli `da:` anahtarlarını kabul eder ve mevcut kayıtları silmeden birleştirir.
+Sunucuya kişisel veri gönderilmez. "ChatGPT'de aç" / "Claude'da aç" yalnızca kullanıcı dokunduğunda, yalnızca o günün ders metnini içeren bir mesajla ilgili siteyi açar. Veriler cihazlar arasında eşitlenmez; **Yedeği indir** ile JSON dosyası alınabilir, **Yedekten yükle** doğrulayıp birleştirir.
 
 ## Yayına alma
 
-Klasör tamamen statiktir; GitHub Pages, Cloudflare Pages, Netlify, Vercel veya HTTPS sunan herhangi bir statik barındırmada çalışır. Kök dizin olarak bu klasörü seçin; derleme komutu gerekmez.
-
-## Claude ile devam
-
-Tüm klasörü Claude projesine yükleyin ve önce `CLAUDE.md` dosyasını okumasını isteyin. İlk mesaj için şu komut yeterlidir:
-
-> Bu projedeki README.md, CLAUDE.md ve KAYNAKLAR.md dosyalarını oku. Mevcut işlevleri ve localStorage anahtarlarını bozmadan projeyi geliştir. Önce mimariyi ve önerdiğin ilk küçük sürümü açıkla; onay almadan büyük bir framework geçişi yapma.
-
-## Native mobil uygulama gerekir mi?
-
-Günlük kişisel kullanım için PWA en düşük maliyetli çözümdür. App Store veya Google Play dağıtımı istenirse sonraki aşamada Capacitor ile paketlenebilir ya da Expo/React Native'e taşınabilir. Bu geçiş otomatik değildir; mağaza hesabı, imzalama, gizlilik beyanı ve mağaza inceleme süreçleri gerekir.
+Klasör tamamen statiktir; GitHub Pages dahil HTTPS sunan her statik barındırmada çalışır. Derleme gerekmez.

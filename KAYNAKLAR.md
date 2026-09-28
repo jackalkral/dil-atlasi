@@ -2,6 +2,22 @@
 
 Bu liste uygulamadaki bağlantıların ve öğrenme tasarımının dayanaklarını bir arada tutar. Haricî sitelerin içerik ve kullanım koşulları kendi sahiplerine aittir; uygulama bu içerikleri kopyalamaz, yalnızca bağlantı verir.
 
+## Benzer uygulamalardan alınanlar (Eylül 2026 araştırması)
+
+| Uygulama | Aldığımız fikir |
+|---|---|
+| Duolingo | Tek "Bugün" yolu, 5–10 dakikalık birimler, seri (yalnızca motivasyon; öğrenme kanıtı değil) |
+| Pimsleur, Glossika, Language Transfer | Eller serbest ses çalışması: Türkçe ipucu → ara → hedef dil (önce üret, sonra dinle) |
+| Anki, Skola, Idiomap | Aralıklı tekrar kutuları, günlük sınırlı kuyruk, arka uç olmadan localStorage |
+| Mango, Glossika | Kelime aynı gün cümle içinde; cümle kurma |
+| Dreaming French, Easy Languages, DW Nicos Weg | Akşam için seviyeli video listesi, hedef dilde altyazı |
+| Language Reactor | Bilgisayarda çift altyazı önerisi (yalnızca masaüstü) |
+| ChatGPT Voice, Claude ses modu | Konuşma pratiği uygulama dışına, kullanıcı dokununca devredilir |
+
+Bağımsız kanıt sınırlı: Kim vd. 2026 (SSLA, 183 Fransızca başlangıç öğrencisi) Duolingo ile sınıfın benzer, birlikte kullanımın daha iyi olduğunu buldu. Vesselinov & Grego (Duolingo 2012, Busuu 2016) şirket destekli ve kontrol grubu yok. Loewen vd. 2020 (Babbel) kontrol grubu yok, %36 bırakma. Birden fazla dili aynı anda öğrenmede benzer kelimelerde karışma artar (Bartolotti & Marian, https://pmc.ncbi.nlm.nih.gov/articles/PMC7451201).
+
+Ses: `speechSynthesis` iOS'ta ekran kilitlenince durur (https://weboutloud.io/bulletin/speech_synthesis_in_safari/). Kilitli ekranda dinleme için tek parça ses dosyası + Media Session gerekir; iOS PWA'da parçalar arası otomatik geçiş hatası var (WebKit 261858).
+
 ## Uygulamadaki yöntemler ve kanıt düzeyi
 
 Günlük plan, Paul Nation'ın "dört kol" dengesine göre kurulu: anlaşılır girdi, anlamlı konuşma, bilinçli dil çalışması ve akıcılık (Nation 2007, https://doi.org/10.2167/illt039.0).
@@ -29,6 +45,16 @@ Not: Nakanishi 2015, Montero Perez 2013 ve Lee vd. 2015'in etki büyüklükleri 
 - Aralıklı çalışmanın ikinci dil öğrenimine etkisi — meta-analiz: https://doi.org/10.1111/lang.12479
 - Altyazılı videonun dinleme ve kelime öğrenimine etkisi — meta-analiz: https://doi.org/10.1016/j.system.2013.07.013
 - Anki ve ücretsiz AnkiWeb eşitleme hizmeti: https://apps.ankiweb.net/
+
+## Dört dil için A0 kaynakları (content/media.js)
+
+Dinle ve İzle sekmelerindeki bağlantılar Eylül 2026'da tek tek açılarak kontrol edildi. Öne çıkanlar:
+- Fransızca/İtalyanca/Almanca ses: Coffee Break 1. sezon, Language Transfer (ücretsiz; anlatım İngilizce)
+- Almanca: DW Nicos Weg A1 Türkçe arayüz (https://learngerman.dw.com/tr/nicos-weg/c-54846011), DW Deutschtrainer Türkçe
+- Fransızca video: Comprehensible French, Alice Ayel, Trotro; İtalyanca: Peppa Pig Italiano, Learn Italian with Lucrezia
+- Türkçe anlatımlı YouTube listeleri (bireysel içerik üreticiler; kalite denetlenmedi)
+- Kelime listeleri: Oxford 3000, Goethe A1 Wortliste (https://www.goethe.de/pro/relaunch/prf/de/A1_SD1_Wortliste_02.pdf), De Mauro temel kelimeler, Wiktionary sıklık listeleri
+- Doğrulanamayan: ChatGPT ücretsiz ses süresi (resmî sayı yok), claude.ai/new?q=, ARD/ZDF/RaiPlay/ARTE Türkiye'den coğrafi erişim
 
 ## İngilizce
 

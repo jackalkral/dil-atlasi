@@ -7,7 +7,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 ## Mevcut mimari
 
 - Bağımlılıksız HTML, CSS ve JavaScript
-- Uygulama `index.html` içinde; ders içeriği `lessons.js` (`window.LESSONS`) dosyasında
+- Arayüz `index.html`, stil `styles.css`, mantık `app.js`; içerik `content/{en,fr,it,de}.js` (`window.LESSONS`) ve `content/media.js` (`window.MEDIA`)
 - PWA manifesti ve çevrimdışı uygulama kabuğu
 - İlerleme için yalnızca `localStorage`
 - Telaffuz için Web Speech API (`speechSynthesis`)
@@ -16,19 +16,21 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 
 ## Öğrenme planı
 
-- Ana dil: İngilizce (A2 → B1, iş ve siber güvenlik odaklı). Yan dil: Fransızca (A0 → A1). İtalyanca ve Almanca sonra.
-- Günlük hedef 25–30 dakika; yan dilde 10–15 dakika.
+- Dört dil de sıfırdan (A0). Kullanıcı dili kendisi seçer; uygulama sıralama dayatmaz.
+- Dört dilde aynı 30 konu aynı sırayla (ortak müfredat). Her ders: t başlık, n Türkçe ipucu, w 8 kelime, p 5 cümle.
+- Sekmeler bağlama göre: Bugün (iş molası), Dinle (yürüyüş, eller serbest), İzle (akşam TV), İlerleme.
+- Bugün aşamaları görev kodlarına bağlı: `review` = tekrar kartları, `lesson` = kelime + cümle + cümle kurma, `shadow` = ses çalışması (bitince kendiliğinden işaretlenir), `speak` = konuşma + ChatGPT/Claude.
 - Ders günü = o dilde bugünden önce çalışılan gün sayısı + 1 (`getLessonDay`); ayrı anahtar yoktur.
-- `lessons.js` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı (Service Worker bu dosyayı önbellekten verir).
-- Günlük bloklar Nation'ın dört koluna göre: `review` = aralıklı tekrar, `lesson` = dinleme/girdi, `shadow` = telaffuz, `speak` = konuşma + 4/3/2. Süreler ana dil 6/8/4/7, yan dil 4/5/3/2 dk.
-- Aralıklı tekrar `dil-atlasi-srs` anahtarında; kart kimliği `dil:dersSırası:cümleSırası`. Mevcut derslerin cümle sırasını değiştirme, yeni cümleyi sona ekle; yoksa kart geçmişi kayar.
-- `review` görevi, günün kartları bitince kendiliğinden işaretlenir.
+- Aralıklı tekrar `dil-atlasi-srs` (v2); kart kimliği `dil:dersSırası:w|s + sıra`. Derslerin kelime/cümle sırasını değiştirme, yenisini sona ekle.
+- `speechSynthesis` ekran kilitlenince durur (özellikle iOS). Dinle sekmesi Wake Lock ile ekranı açık tutmaya çalışır; ekran kilitli dinleme için podcast bağlantıları verilir. Kalıcı çözüm: derleme sırasında üretilmiş tek parça ses dosyaları + Media Session API (ses lisansı ve boyut değerlendirilmeli).
+- `content/*.js`, `app.js` veya `styles.css` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı (Service Worker bu dosyaları önbellekten verir).
+- `https://chatgpt.com/?q=` mesajı otomatik gönderir (doğrulandı). `claude.ai/new?q=` doğrulanamadı; Claude düğmesi mesajı kopyalayıp claude.ai/new açar.
 
 ## Korunması gereken davranışlar
 
 1. `dil-atlasi-active` aktif dil anahtarını koru.
 2. `da:{task}:{lang}:{date}` görev anahtarlarını taşımadan veya geriye uyumluluk sağlamadan değiştirme.
-3. Dil kodları `en`, `fr`, `it`, `de`; görev kodları `review`, `lesson`, `shadow`, `speak` olarak kalmalı. `dil-atlasi-timer` ve `dil-atlasi-srs` anahtarları da korunmalı.
+3. Dil kodları `en`, `fr`, `it`, `de`; görev kodları `review`, `lesson`, `shadow`, `speak` olarak kalmalı. `dil-atlasi-timer`, `dil-atlasi-srs` ve `dil-atlasi-tab` anahtarları da korunmalı.
 4. Kullanıcı verisini açık onay olmadan haricî bir servise gönderme.
 5. Ücretsiz kaynak bağlantılarını koru ve ücretli hizmeti ana akışa yerleştirme.
 6. Mobil erişilebilirliği, klavye kullanımını ve düşük hareket tercihini koru.
@@ -40,7 +42,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 
 - ~~İlerleme verisini JSON olarak dışa/içe aktarma~~ (yapıldı)
 - ~~Çalışma süresini 25/45/60 dakika seçebilme~~ (yapıldı)
-- ~~Günlük ders içeriğini 30 güne çıkarma~~ (en ve fr için yapıldı; it ve de bekliyor)
+- ~~Günlük ders içeriğini 30 güne çıkarma~~ (dört dil, ortak A0 müfredatı)
 - Telaffuz kaydı için kullanıcı izniyle mikrofon desteği
 - ~~Service Worker güncelleme bildirimi~~ (yapıldı)
 
@@ -76,7 +78,9 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 - Dört dil arasında geçiş yapılabiliyor.
 - Her görev işaretlendiğinde ilerleme ve geçmiş güncelleniyor.
 - Sayfa yenilendiğinde seçimler korunuyor.
-- Sayaç başlatılabiliyor, durdurulabiliyor ve sıfırlanabiliyor.
+- Sayaç (İlerleme sekmesi) başlatılabiliyor, durdurulabiliyor ve sıfırlanabiliyor.
+- Dört sekme arasında geçiş yapılabiliyor; açık sekme yenilemede korunuyor.
+- Dinle sekmesindeki ses çalışması bitince `shadow` aşaması işaretleniyor.
 - Telaffuz düğmesi doğru dil kodunu kullanıyor.
 - Uygulama ana ekrana kurulabiliyor ve standalone açılıyor.
 - Ağ kesikken daha önce yüklenen uygulama kabuğu açılıyor.
