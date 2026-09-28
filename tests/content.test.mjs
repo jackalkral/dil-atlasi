@@ -9,7 +9,7 @@ const check = (ok, msg) => { if (ok) passes++; else { fails++; console.error('�
 
 // İçerik dosyalarını tarayıcıdaki gibi tek bir window nesnesine yükle.
 const ctx = {window: {}}; vm.createContext(ctx);
-for (const f of ['en', 'fr', 'it', 'de', 'media']) vm.runInContext(read(`content/${f}.js`), ctx, {filename: f});
+for (const f of ['en', 'fr', 'it', 'de', 'media', 'emoji']) vm.runInContext(read(`content/${f}.js`), ctx, {filename: f});
 const {LESSONS, MEDIA} = ctx.window;
 const LANGS = ['en', 'fr', 'it', 'de'];
 
@@ -43,6 +43,17 @@ for (const lang of LANGS) {
   all.forEach(r => check(/^https:\/\//.test(r.u) && r.n && r.d && r.c, `${lang}: eksik ya da https olmayan kaynak (${r.n})`));
   check(new Set(all.map(r => r.u)).size === all.length, `${lang}: tekrarlanan kaynak adresi var`);
 }
+
+// 2b) Emoji eşlemesi: geçerli ders/kelime sırası, dört dilde aynı anlam grubuna denk gelmeli.
+const {EMOJI} = ctx.window;
+for (const k of Object.keys(EMOJI)) {
+  const [li, wi] = k.split(':').map(Number);
+  check(li >= 0 && li < 30 && wi >= 0 && wi < 8, `emoji anahtarı geçersiz: ${k}`);
+  const firstWord = s => s.toLocaleLowerCase('tr').replace(/[()]/g, '').split(/[ ,/]+/)[0];
+  const tr = LANGS.map(l => firstWord(LESSONS[l][li].w[wi][1]));
+  check(tr.every(x => x === tr[0]) || new Set(tr).size <= 2, `emoji ${k}: dillerde anlam farklı görünüyor (${tr.join(' | ')})`);
+}
+check(!('shadow' in EMOJI), 'emoji dosyası yalnızca eşleme içermeli');
 
 // 3) Uygulama kabuğu: Service Worker'daki her dosya var olmalı.
 const shell = read('sw.js').match(/APP_SHELL = \[(.*?)\]/s)[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));

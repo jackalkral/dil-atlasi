@@ -51,6 +51,7 @@ function getLessonDay(lang = active) {
   return Math.max(1, Math.min(count + 1, lessonsFor(lang).length));
 }
 const todayLesson = () => lessonsFor()[getLessonDay() - 1];
+const emojiFor = (li, wi) => window.EMOJI?.[`${li}:${wi}`] || '';
 
 // ---------- Seslendirme ----------
 // Ses kalitesi cihazdaki seslere bağlıdır. Otomatik seçim "Premium/Enhanced/Natural/Neural/Google" sesleri öne alır,
@@ -110,7 +111,7 @@ function saveSrs(s) { store.set(SRS_KEY, JSON.stringify(s)); }
 function dueCards(lang = active, limit = 60) {
   const cards = loadSrs().cards, all = lessonsFor(lang), today = localDate(), out = [];
   for (let li = 0; li < getLessonDay(lang) - 1; li++) {
-    const add = (kind, [target, tr, pron], i) => { const id = `${lang}:${li}:${kind}${i}`, c = cards[id]; if (!c || c.d <= today) out.push({id, target, tr, pron, box: c ? c.b : -1, due: c ? c.d : ''}); };
+    const add = (kind, [target, tr, pron], i) => { const id = `${lang}:${li}:${kind}${i}`, c = cards[id]; if (!c || c.d <= today) out.push({id, target, tr, pron, emoji: kind === 'w' ? emojiFor(li, i) : '', box: c ? c.b : -1, due: c ? c.d : ''}); };
     all[li].w.forEach((x, i) => add('w', x, i)); all[li].p.forEach((x, i) => add('s', x, i));
   }
   // Hata defteri kartları eklendikleri günün ertesinden itibaren gelir.
@@ -119,6 +120,8 @@ function dueCards(lang = active, limit = 60) {
 }
 function gradeCard(id, box, ok) {
   const s = loadSrs(), b = ok ? Math.min(box + 1, INTERVALS.length - 1) : 0;
+  // Harcanan süre yerine kalıcılığı ölç: 7+ gün aralıkla dönen kartlarda hatırlama oranı.
+  if (box >= 2) { const lang = id.slice(0, 2), st = (s.stats ||= {})[lang] ||= {ok:0, n:0}; st.n++; if (ok) st.ok++; }
   s.cards[id] = {b, d: localDate(ok ? INTERVALS[b] : 1)}; saveSrs(s);
 }
 const learnedCount = (lang = active) => Object.entries(loadSrs().cards).filter(([id, c]) => id.startsWith(lang + ':') && c.b >= 2).length;
@@ -198,7 +201,7 @@ function stepBody(s, lesson, due, i) {
 function flashcard(due, voice, i) {
   const c = due[0], box = el('div', {className:'flash'});
   const meta = el('div', {className:'small muted', textContent:`Kalan ${due.length} kart · ${c.box < 0 ? 'yeni' : 'kutu ' + (c.box + 1)}`});
-  const q = el('div', {className:'q', textContent:c.tr});
+  const q = el('div', {className:'q', textContent: c.emoji ? `${c.emoji}  ${c.tr}` : c.tr});
   const reveal = el('button', {type:'button', className:'btn big', textContent:'Cevabı göster'});
   box.append(meta, q, el('p', {className:'small', textContent:'Önce yüksek sesle söyle, sonra aç.'}), reveal);
   reveal.onclick = () => {
@@ -211,7 +214,7 @@ function flashcard(due, voice, i) {
   return box;
 }
 function lessonBody(lesson, voice, i) {
-  const words = el('div', {className:'items'}, ...lesson.w.map(([t, tr, pron]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), pron ? el('span', {className:'pron', textContent:`[${pron}]`}) : '', el('span', {textContent:tr})), speakBtn(t, voice))));
+  const words = el('div', {className:'items'}, ...lesson.w.map(([t, tr, pron], wi) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent: emojiFor(getLessonDay() - 1, wi) ? `${emojiFor(getLessonDay() - 1, wi)} ${t}` : t}), pron ? el('span', {className:'pron', textContent:`[${pron}]`}) : '', el('span', {textContent:tr})), speakBtn(t, voice))));
   const sentences = el('div', {className:'items'}, ...lesson.p.map(([t, tr]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), el('span', {textContent:tr})), speakBtn(t, voice))));
   const playAll = list => { let k = 0; const next = () => { if (k >= list.length) return; const u = utter(list[k++][0], voice, .8); u.onend = () => setTimeout(next, 700); speechSynthesis.speak(u); }; speechSynthesis.cancel(); next(); };
   return [
@@ -222,7 +225,7 @@ function lessonBody(lesson, voice, i) {
     el('div', {className:'tip', textContent:`💡 ${lesson.n}`}),
     el('div', {className:'eyebrow mt', textContent:'3 · Cümle kur'}), sentenceBuilder(lesson.p, voice),
     el('div', {className:'eyebrow mt', textContent:'4 · Kendini sına'}), el('p', {className:'small', textContent:'Birkaç dakika sonra, bakmadan hatırla: Türkçesini gör, hedef dilde söyle, sonra aç. Bilemediklerin sona eklenir. Hatırlamaya çalışmak, tekrar okumaktan daha kalıcıdır.'}),
-    selfQuiz([...lesson.w, ...lesson.p], voice),
+    selfQuiz([...lesson.w.map(([t, tr, pron], wi) => [t, tr, pron, emojiFor(getLessonDay() - 1, wi)]), ...lesson.p], voice),
     doneRow('lesson', i + 1)
   ];
 }
@@ -233,9 +236,9 @@ function selfQuiz(items, voice) {
     let queue = items.map(x => x).sort(() => Math.random() - .5), right = 0;
     const draw = () => {
       if (!queue.length) { box.replaceChildren(el('p', {className:'result ok', role:'status', textContent:`Tamam! ${right} öğeyi hatırladın.`}), el('button', {type:'button', className:'btn secondary', textContent:'Yeniden', onclick: start})); return; }
-      const [t, tr, pron] = queue[0], card = el('div', {className:'flash'});
+      const [t, tr, pron, emo] = queue[0], card = el('div', {className:'flash'});
       const reveal = el('button', {type:'button', className:'btn big', textContent:'Cevabı göster'});
-      card.append(el('div', {className:'small muted', textContent:`Kalan ${queue.length}`}), el('div', {className:'q', textContent:tr}), reveal);
+      card.append(el('div', {className:'small muted', textContent:`Kalan ${queue.length}`}), el('div', {className:'q', textContent: emo ? `${emo}  ${tr}` : tr}), reveal);
       reveal.onclick = () => {
         speak(t, voice);
         const next = ok => { const it = queue.shift(); if (ok) right++; else queue.push(it); draw(); box.querySelector('.btn')?.focus(); };
@@ -326,7 +329,7 @@ function sayAsync(text, lang, rate, run) {
 }
 function drillItems() {
   const lesson = todayLesson();
-  return [...lesson.w.map(x => ({tr:x[1], t:x[0], pron:x[2]})), ...lesson.p.map(x => ({tr:x[1], t:x[0]})), ...dueCards(active, 10).map(c => ({tr:c.tr, t:c.target, pron:c.pron}))];
+  return [...lesson.w.map((x, wi) => ({tr: emojiFor(getLessonDay() - 1, wi) ? `${emojiFor(getLessonDay() - 1, wi)} ${x[1]}` : x[1], t:x[0], pron:x[2]})), ...lesson.p.map(x => ({tr:x[1], t:x[0]})), ...dueCards(active, 10).map(c => ({tr:c.tr, t:c.target, pron:c.pron}))];
 }
 async function startDrill() {
   if (!('speechSynthesis' in window)) { $('#drillL1').textContent = 'Bu tarayıcı seslendirmeyi desteklemiyor.'; return; }
@@ -337,7 +340,7 @@ async function startDrill() {
   for (let k = 0; k < items.length && drill.run === run; k++) {
     const it = items[k];
     $('#drillLabel').textContent = `${k + 1}/${items.length}`; $('#drillL1').textContent = it.tr; $('#drillL2').textContent = '…';
-    await sayAsync(it.tr, 'tr-TR', 1, run); await sleep(gap());
+    await sayAsync(it.tr.replace(/^\S+\s(?=\p{L})/u, m => /\p{L}/u.test(m) ? m : ''), 'tr-TR', 1, run); await sleep(gap());
     if (drill.run !== run) break;
     $('#drillL2').textContent = it.t; $('#drillPron').textContent = it.pron ? `[${it.pron}]` : '';
     await sayAsync(it.t, voice, .8, run); await sleep(900);
@@ -373,6 +376,8 @@ function renderProgress() {
   $('#progressTitle').textContent = `${l.name} ilerlemesi`;
   let days = 0; for (let i = 0; i < 365; i++) if (studiedOn(localDate(-i))) days++;
   $('#statDays').textContent = days; $('#statStreak').textContent = getStreak(); $('#statCards').textContent = learnedCount();
+  const rs = loadSrs().stats?.[active];
+  $('#retention').textContent = rs?.n ? `7+ gün sonra hatırlama: %${Math.round(rs.ok / rs.n * 100)} (${rs.n} kart). Asıl ilerleme ölçün bu; süre değil.` : 'Uzun süreli hatırlama, kartlar 7+ gün aralıkla dönmeye başlayınca burada ölçülür.';
   const h = $('#history'); h.replaceChildren();
   for (let i = 27; i >= 0; i--) { const n = tasks.filter(t => isDone(t, active, localDate(-i))).length; h.append(el('span', {className:`history-day ${n === 4 ? 'full' : n ? 'some' : ''}`, title:`${localDate(-i)} · ${n}/4`})); }
   $('#lessonList').replaceChildren(...lessonsFor().map((ls, k) => el('li', {className: k < day - 1 ? 'done' : k === day - 1 ? 'current' : '', textContent:ls.t})));

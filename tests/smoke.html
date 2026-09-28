@@ -126,6 +126,17 @@
     check(n === 13 && srs.v === 2, '13 kart değerlendirildi, v2 biçimi', `n=${n}`);
     check(srs.cards['en:0:w0'].d === day(1) && srs.cards['en:0:w1'].d === day(1), 'Bilinen ve bilinmeyen kart ertesi güne planlandı');
     check(localStorage.getItem(`da:review:en:${today}`) === '1', 'Kartlar bitince review kendiliğinden işaretlendi');
+    const h3 = $$('.step-head'); if (h3[1].getAttribute('aria-expanded') !== 'true') h3[1].click();
+    check($$('.step.open .item strong').some(e => e.textContent.startsWith('🇹🇷')), 'Somut kelimede emoji ipucu görünüyor (Ders 2: Türkiye)');
+
+    // 6b) Uzun süreli hatırlama ölçüsü: 7+ gün aralıklı kart
+    const st6 = JSON.parse(localStorage.getItem('dil-atlasi-srs')); st6.cards['en:0:s0'] = {b:2, d:today}; localStorage.setItem('dil-atlasi-srs', JSON.stringify(st6));
+    w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    const h6 = $$('.step-head'); if (h6[0].getAttribute('aria-expanded') !== 'true') h6[0].click();
+    $('#steps .flash .btn').click(); $$('#steps .flash .actions .btn')[1].click();
+    const st7 = JSON.parse(localStorage.getItem('dil-atlasi-srs'));
+    check(st7.stats?.en?.n === 1 && st7.stats.en.ok === 1 && st7.cards['en:0:s0'].b === 3, 'Uzun aralıklı kart hatırlama ölçüsüne sayıldı');
+    check(/%100/.test($('#retention').textContent), 'İlerleme: 7+ gün hatırlama oranı gösteriliyor', $('#retention').textContent);
 
     // 7) Yedekleme: dışa aktar, bozuk dosyayı reddet, geri yükle
     let blob; const oc = w.URL.createObjectURL; w.URL.createObjectURL = b => { blob = b; return oc(b); }; w.HTMLAnchorElement.prototype.click = function () {};

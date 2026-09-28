@@ -20,6 +20,23 @@ Ses: `speechSynthesis` iOS'ta ekran kilitlenince durur (https://weboutloud.io/bu
 
 ## Uygulamadaki yöntemler ve kanıt düzeyi
 
+### Doğrulama notu (Eylül 2026)
+
+Kullanıcının paylaştığı özet tek tek kontrol edildi:
+- Aralıklı tekrar (Kim & Webb 2022): 48 deney, 3.411 katılımcı; uzun aralık gecikmeli testte daha iyi; eşit ve genişleyen aralık farksız. **Doğru.**
+- Bilinçli kelime etkinlikleri (Webb, Yanagisawa & Uchihara 2020, https://doi.org/10.1111/modl.12671): 22 çalışma; biçim hatırlama %58,5 → gecikmeli %25,1. **Doğru**; tek kelime yerine cümle ve üretim gerekçesi.
+- Video (Sutton & Webb 2026, https://doi.org/10.1017/S0272263126101612): öğretici video g = 1,61, ders 1,31, TED 1,23, **belgesel 1,21**; film ,53 ve dizi ,51 anlamlı değil. Özetteki "belgesel zayıf" ifadesi **yanlış**.
+- Diyalog sistemleri (Hou & Min, ReCALL 2025/2026, https://doi.org/10.1017/S0958344025100268): 16 çalışma, g = ,61; hedefe yönelik sistemler daha etkili. **Büyük ölçüde doğru.**
+- Düzeltici geri bildirim (Li 2010): 33 çalışma, d = ,61, kalıcı. **Doğru.**
+- Fonetik eğitim (Uchihara, Karas & Thomson 2025, SSLA): 79 çalışma, kontrol grubuna göre g = ,67; kalıcı. **Doğru**, ama ölçülen algı (üretim ayrı).
+- Geniş okuma (Educational Psychology Review 2025, https://doi.org/10.1007/s10648-025-10068-6): küçük–orta etkiler; seviye sınırlama ve hesap verebilirlik etkili. **Doğru.**
+- Açık/örtük öğretim (Spada & Tomita 2010): 41 çalışma, açık öğretim daha etkili. **Doğru.**
+- 4 dil için %70/%20/%10: **araştırma yok, görüş.**
+
+Resim ve emoji: Lotto & de Groot 1998 ve Carpenter & Olson 2012'ye göre resim tek başına çeviriden iyi değil ve fazla özgüven yaratabilir; hatırlama pratiğiyle birlikte somut isimlerde ek ipucu olarak kullanılır. Emoji için uzun süreli kanıt yok (tek küçük tanıma çalışması).
+
+Sıklık: Nation 2006 — anlamak için %95–98 kapsama gerekir; FR/DE/ES'de ilk 2.000 lemma konuşmanın ~%90'ını kapsar. A0 için öneri: önce hayatta kalma kalıpları, sonra en sık ~1.000 lemma. Açık lisanslı listeler: hermitdave/FrequencyWords (CC BY-SA 4.0), NGSL (CC BY-SA 4.0), Lexique (CC BY-SA 4.0), wordfreq verisi (CC BY-SA 4.0). SUBTLEX-DE (CC BY-NC-ND) uygulamaya konamaz.
+
 Günlük plan, Paul Nation'ın "dört kol" dengesine göre kurulu: anlaşılır girdi, anlamlı konuşma, bilinçli dil çalışması ve akıcılık (Nation 2007, https://doi.org/10.2167/illt039.0).
 
 | Yöntem | Uygulamadaki karşılığı | Kanıt | Kaynak |
