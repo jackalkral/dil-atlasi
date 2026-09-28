@@ -9,7 +9,7 @@ const check = (ok, msg) => { if (ok) passes++; else { fails++; console.error('�
 
 // İçerik dosyalarını tarayıcıdaki gibi tek bir window nesnesine yükle.
 const ctx = {window: {}}; vm.createContext(ctx);
-for (const f of ['en', 'fr', 'it', 'de', 'media', 'emoji']) vm.runInContext(read(`content/${f}.js`), ctx, {filename: f});
+for (const f of ['en', 'fr', 'it', 'de', 'media', 'emoji', 'freq-en', 'freq-fr', 'freq-it', 'freq-de']) vm.runInContext(read(`content/${f}.js`), ctx, {filename: f});
 const {LESSONS, MEDIA} = ctx.window;
 const LANGS = ['en', 'fr', 'it', 'de'];
 
@@ -54,6 +54,23 @@ for (const k of Object.keys(EMOJI)) {
   check(tr.every(x => x === tr[0]) || new Set(tr).size <= 2, `emoji ${k}: dillerde anlam farklı görünüyor (${tr.join(' | ')})`);
 }
 check(!('shadow' in EMOJI), 'emoji dosyası yalnızca eşleme içermeli');
+
+// 2c) En sık 1000 kelime: dört dilde 1000'er benzersiz madde, tam alanlar, lisans başlığı.
+const {FREQ} = ctx.window;
+for (const lang of LANGS) {
+  const F = FREQ?.[lang] || [];
+  check(F.length === 1000, `freq-${lang}: 1000 madde olmalı (${F.length})`);
+  check(new Set(F.map(x => x[0].toLocaleLowerCase())).size === F.length, `freq-${lang}: tekrarlanan kelime var`);
+  F.forEach((x, i) => {
+    const where = `freq-${lang} #${i + 1} (${x[0]})`;
+    check(x.length === 6 && x.slice(0, 5).every(v => typeof v === 'string' && v.trim()) && typeof x[5] === 'string', `${where}: 6 alan olmalı`);
+    check(/[A-ZÇĞİÖŞÜÑ]/.test(x[2]), `${where}: okunuşta vurgulu hece büyük harf olmalı`);
+    check(x[3].split(/\s+/).length <= 10 && !/[<>]/.test(x.join('')), `${where}: örnek kısa ve HTML'siz olmalı`);
+  });
+  const head = read(`content/freq-${lang}.js`).slice(0, 600);
+  check(/CC BY-SA 4\.0/.test(head) && /FrequencyWords/.test(head), `freq-${lang}: lisans ve kaynak başlığı olmalı`);
+}
+check(/FrequencyWords/.test(read('index.html')) && /by-sa\/4\.0/.test(read('index.html')), 'Uygulamada sıklık verisinin kaynağı ve lisansı görünmeli');
 
 // 3) Uygulama kabuğu: Service Worker'daki her dosya var olmalı.
 const shell = read('sw.js').match(/APP_SHELL = \[(.*?)\]/s)[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));

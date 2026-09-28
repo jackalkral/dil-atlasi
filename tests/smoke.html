@@ -72,6 +72,17 @@
     check($('.step.open .step-title').textContent === 'Dinle ve tekrar et', 'Sonraki aşama açıldı');
     check($('#todayBar').style.width === '50%', 'İlerleme çubuğu %50', $('#todayBar').style.width);
 
+    // 3b) En sık 1000 kelime: ders tamamlanınca ilk paket öğrenildi, bugün aynı paket görünmeye devam eder
+    const fst = JSON.parse(localStorage.getItem('dil-atlasi-sik') || '{}').fr;
+    check(fst && fst.done === 1 && fst.last === today, 'Sık kelimeler: ders tamamlanınca 1. paket sayıldı', JSON.stringify(fst));
+    const hf = $$('.step-head'); if (hf[1].getAttribute('aria-expanded') !== 'true') hf[1].click();
+    check($$('.step.open .item.freq').length === 10 && $$('.step.open .item.freq strong')[0].textContent.includes(w.FREQ.fr[0][0]), 'Sık kelimeler: bugünün 10 kelimesi (1–10) görünüyor');
+    check($$('.step.open .item.freq .example').length === 10, 'Sık kelimeler: örnek cümleler var');
+    $$('.step.open .btn').find(b => b.textContent === 'Geri al').click();
+    check(JSON.parse(localStorage.getItem('dil-atlasi-sik')).fr.done === 0, 'Geri alınca paket sayacı geri döndü');
+    const hf2 = $$('.step-head'); if (hf2[1].getAttribute('aria-expanded') !== 'true') hf2[1].click();
+    $$('.step.open .btn').find(b => b.textContent.startsWith('Tamamladım')).click();
+
     // 4) Dinle: ses çalışması baştan sona, bitince shadow işaretlenir
     $('#tab-yuru').click(); $('#drillPlay').click();
     for (let i = 0; i < 100 && !$('#drillL1').textContent.startsWith('Bitti'); i++) await wait(50);
@@ -128,6 +139,16 @@
     check(localStorage.getItem(`da:review:en:${today}`) === '1', 'Kartlar bitince review kendiliğinden işaretlendi');
     const h3 = $$('.step-head'); if (h3[1].getAttribute('aria-expanded') !== 'true') h3[1].click();
     check($$('.step.open .item strong').some(e => e.textContent.startsWith('🇹🇷')), 'Somut kelimede emoji ipucu görünüyor (Ders 2: Türkiye)');
+
+    // 6a) Dünkü sık kelime paketi bugün tekrar kartı olur
+    localStorage.setItem('dil-atlasi-sik', JSON.stringify({en: {on: true, done: 1, last: day(-1)}}));
+    w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    check(w.dueCards('en').filter(c => c.id.startsWith('en:f:')).length === 10, 'Dünkü 10 sık kelime tekrar kuyruğunda');
+    const hs = $$('.step-head'); if (hs[1].getAttribute('aria-expanded') !== 'true') hs[1].click();
+    check($$('.step.open .item.freq strong')[0]?.textContent.includes(w.FREQ.en[10][0]), 'Bugün 11–20. kelimeler gösteriliyor');
+    $('#tab-ilerleme').click(); $('#freqToggle').click();
+    check(JSON.parse(localStorage.getItem('dil-atlasi-sik')).en.on === false && !w.document.querySelector('.item.freq'), 'Sık kelimeler kapatılabiliyor');
+    $('#freqToggle').click(); $('#tab-bugun').click();
 
     // 6b) Uzun süreli hatırlama ölçüsü: 7+ gün aralıklı kart
     const st6 = JSON.parse(localStorage.getItem('dil-atlasi-srs')); st6.cards['en:0:s0'] = {b:2, d:today}; localStorage.setItem('dil-atlasi-srs', JSON.stringify(st6));

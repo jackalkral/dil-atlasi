@@ -91,6 +91,14 @@
         <div class="history" id="history" aria-label="Son 28 gün"></div>
         <p class="small">Açık renk: kısmi çalışma · Dolu renk: dört aşama tamam.</p>
       </div>
+      <div class="card" id="freqCard">
+        <h2>En sık 1000 kelime</h2>
+        <p class="small">Günlük hayatta en çok kullanılan kelimeler, sıklık sırasıyla, her gün 10 tane. Ders adımının 5. bölümünde çıkar.</p>
+        <p class="small" id="freqProgress"></p>
+        <div class="bar" aria-hidden="true"><span id="freqBar"></span></div>
+        <label class="switch"><input type="checkbox" id="freqToggle"> <span>Sık kelimeleri günlük derse ekle</span></label>
+        <p class="small muted">Sıklık verisi: <a href="https://github.com/hermitdave/FrequencyWords" target="_blank" rel="noopener noreferrer">FrequencyWords</a> (Hermit Dave, OpenSubtitles 2018), <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.tr" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>. Uygulamadaki liste bu veriden türetilmiştir (sözlük biçimine indirildi, Türkçe anlam, okunuş ve örnek eklendi) ve aynı lisansla paylaşılır.</p>
+      </div>
       <div class="card"><h2>30 günlük rota</h2><p class="small">Ders, o dilde çalıştığın her yeni günde bir sonrakine geçer. Gün atlarsan ders kaçmaz.</p><ol class="lesson-list" id="lessonList"></ol></div>
       <div class="card">
         <h2>Odak sayacı</h2>
@@ -149,6 +157,10 @@
   <script src="./content/de.js"></script>
   <script src="./content/media.js"></script>
   <script src="./content/emoji.js"></script>
+  <script src="./content/freq-en.js"></script>
+  <script src="./content/freq-fr.js"></script>
+  <script src="./content/freq-it.js"></script>
+  <script src="./content/freq-de.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

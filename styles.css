@@ -139,3 +139,6 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .options.left{justify-content:flex-start}.mt-s{margin-top:12px}
 .howto-voice{margin-top:12px}.howto-voice summary{cursor:pointer;color:var(--lang);font-weight:700;font-size:.9rem}
 .note-form{display:grid;gap:8px}.note-form input{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit}
+.item.freq .example{margin-top:4px;color:var(--text);font-style:italic}.item.freq .example-tr{font-size:.8rem}
+.freq-btns{display:grid;gap:6px}
+.switch{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.9rem}.switch input{width:20px;height:20px;accent-color:var(--lang)}

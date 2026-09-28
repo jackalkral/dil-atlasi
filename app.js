@@ -21,8 +21,34 @@ const store = {
 };
 function localDate(offset = 0) { const d = new Date(); d.setDate(d.getDate() + offset); return d.toLocaleDateString('en-CA'); }
 const key = (type, lang = active, date = localDate()) => `da:${type}:${lang}:${date}`;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isDone = (t, lang = active, date = localDate()) => store.get(key(t, lang, date)) === '1';
-function setDone(t, on = true) { on ? store.set(key(t), '1') : store.del(key(t)); render(); }
+function setDone(t, on = true) { on ? store.set(key(t), '1') : store.del(key(t)); if (t === 'lesson') freqAdvance(on); render(); }
+
+// ---------- En sık 1000 kelime ----------
+// Günde 10 kelimelik paket; ders aşaması "Tamamladım" ile işaretlenince paket öğrenilmiş sayılır.
+// Durum: dil-atlasi-sik = {en: {on, done, last}} — done: öğrenilen paket sayısı, last: son ilerletilen gün.
+const FREQ_KEY = 'dil-atlasi-sik', FREQ_BATCH = 10;
+const freqList = (lang = active) => window.FREQ?.[lang] || [];
+function freqState(lang = active) {
+  let all = {}; try { all = JSON.parse(store.get(FREQ_KEY)) || {}; } catch {}
+  const st = all[lang] || {};
+  return {on: st.on !== false, done: Number.isInteger(st.done) && st.done >= 0 ? st.done : 0, last: DATE_RE.test(st.last || '') ? st.last : ''};
+}
+function saveFreqState(lang, st) { let all = {}; try { all = JSON.parse(store.get(FREQ_KEY)) || {}; } catch {} all[lang] = st; store.set(FREQ_KEY, JSON.stringify(all)); }
+// Bugün gösterilen paket: bugün ilerletildiyse bir önceki (bugün öğrenilen), değilse sıradaki.
+function freqToday(lang = active) {
+  const st = freqState(lang), list = freqList(lang); if (!st.on || !list.length) return null;
+  const batch = st.last === localDate() ? st.done - 1 : st.done, from = batch * FREQ_BATCH;
+  if (from >= list.length) return {batch, from, items: []};
+  return {batch, from, items: list.slice(from, from + FREQ_BATCH)};
+}
+function freqAdvance(on) {
+  const st = freqState(), today = localDate(); if (!st.on || !freqList().length) return;
+  if (on && st.last !== today && st.done * FREQ_BATCH < freqList().length) { st.done++; st.last = today; }
+  else if (!on && st.last === today) { st.done = Math.max(0, st.done - 1); st.last = ''; }
+  saveFreqState(active, st);
+}
 
 // Tek seferlik sıfırlama (Eylül 2026, kullanıcı isteği): dört dil ders 1'den başlar.
 // Silinen kayıtlar kaybolmaz; dil-atlasi-sifirlama-yedegi anahtarında JSON olarak saklanır.
@@ -88,7 +114,7 @@ const speakBtn = (text, lang) => el('button', {type:'button', className:'speak',
 // ---------- Aralıklı tekrar (Leitner kutuları) ----------
 // Önceki derslerin kelime (w) ve cümleleri (s) karta dönüşür. Bildim → kutu +1 (1/3/7/14/30 gün), Tekrar → yarın.
 const SRS_KEY = 'dil-atlasi-srs', INTERVALS = [1, 3, 7, 14, 30];
-const CARD_ID = /^(en|fr|it|de):(\d{1,3}:[ws]\d{1,2}|n:[a-z0-9]{4,14})$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
+const CARD_ID = /^(en|fr|it|de):(\d{1,3}:[ws]\d{1,2}|n:[a-z0-9]{4,14}|f:\d{1,4})$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
 // Hata defteri: yapay zekânın ya da kendinin düzelttiği cümleler kullanıcı kartı olur (dil-atlasi-notlar).
 // Kullanıcı girdisidir: yalnızca textContent ile gösterilir, uzunluk sınırlıdır.
 const NOTES_KEY = 'dil-atlasi-notlar', NOTE_MAX = 200, NOTES_PER_DAY = 2;
@@ -114,9 +140,13 @@ function dueCards(lang = active, limit = 60) {
     const add = (kind, [target, tr, pron], i) => { const id = `${lang}:${li}:${kind}${i}`, c = cards[id]; if (!c || c.d <= today) out.push({id, target, tr, pron, emoji: kind === 'w' ? emojiFor(li, i) : '', box: c ? c.b : -1, due: c ? c.d : ''}); };
     all[li].w.forEach((x, i) => add('w', x, i)); all[li].p.forEach((x, i) => add('s', x, i));
   }
+  // Sık kelimeler: bugünden önce öğrenilen paketler karta dönüşür.
+  const fs = freqState(lang), fl = freqList(lang), learned = Math.min(fl.length, (fs.last === today ? fs.done - 1 : fs.done) * FREQ_BATCH);
+  for (let k = 0; k < learned; k++) { const id = `${lang}:f:${k}`, c = cards[id], [target, tr, pron, , , emoji] = fl[k]; if (!c || c.d <= today) out.push({id, target, tr, pron, emoji, box: c ? c.b : -1, due: c ? c.d : ''}); }
   // Hata defteri kartları eklendikleri günün ertesinden itibaren gelir.
   for (const [id, n] of Object.entries(loadNotes().items)) { if (!id.startsWith(lang + ':') || n.d >= today) continue; const c = cards[id]; if (!c || c.d <= today) out.push({id, target:n.t, tr:n.tr, box: c ? c.b : -1, due: c ? c.d : ''}); }
-  return out.sort((a, b) => a.due.localeCompare(b.due)).slice(0, limit);
+  // Önce günü gelmiş tekrarlar (en eski önce), sonra yeni kartlar.
+  return out.sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, limit);
 }
 function gradeCard(id, box, ok) {
   const s = loadSrs(), b = ok ? Math.min(box + 1, INTERVALS.length - 1) : 0;
@@ -213,6 +243,16 @@ function flashcard(due, voice, i) {
   };
   return box;
 }
+function freqSection(voice) {
+  const f = freqToday(); if (!f) return [];
+  if (!f.items.length) return [el('div', {className:'eyebrow mt', textContent:'5 · Sık kelimeler'}), el('p', {className:'small', textContent:'1000 kelimenin hepsini gördün! Tekrar kartları devam ediyor.'})];
+  const list = el('div', {className:'items'}, ...f.items.map(([t, tr, pron, ex, exTr, emo]) => el('div', {className:'item freq'},
+    el('div', {}, el('strong', {textContent: emo ? `${emo} ${t}` : t}), el('span', {className:'pron', textContent:`[${pron}]`}), el('span', {textContent:tr}),
+      el('span', {className:'example', textContent:`„${ex}”`}), el('span', {className:'example-tr', textContent:exTr})),
+    el('div', {className:'freq-btns'}, speakBtn(t, voice), el('button', {type:'button', className:'speak', textContent:'💬', ariaLabel:`Örneği seslendir: ${ex}`, onclick: () => speak(ex, voice)})))));
+  return [el('div', {className:'eyebrow mt', textContent:`5 · Sık kelimeler (${f.from + 1}–${f.from + f.items.length} / ${freqList().length})`}),
+    el('p', {className:'small', textContent:'En sık kullanılan kelimelerden bugünün 10\'u. Kelimeyi ve örnek cümleyi dinle, cümleyi yüksek sesle söyle. Ders adımını tamamlayınca paket öğrenilmiş sayılır, yarın tekrar kartlarına girer.'}), list];
+}
 function lessonBody(lesson, voice, i) {
   const words = el('div', {className:'items'}, ...lesson.w.map(([t, tr, pron], wi) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent: emojiFor(getLessonDay() - 1, wi) ? `${emojiFor(getLessonDay() - 1, wi)} ${t}` : t}), pron ? el('span', {className:'pron', textContent:`[${pron}]`}) : '', el('span', {textContent:tr})), speakBtn(t, voice))));
   const sentences = el('div', {className:'items'}, ...lesson.p.map(([t, tr]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), el('span', {textContent:tr})), speakBtn(t, voice))));
@@ -225,7 +265,8 @@ function lessonBody(lesson, voice, i) {
     el('div', {className:'tip', textContent:`💡 ${lesson.n}`}),
     el('div', {className:'eyebrow mt', textContent:'3 · Cümle kur'}), sentenceBuilder(lesson.p, voice),
     el('div', {className:'eyebrow mt', textContent:'4 · Kendini sına'}), el('p', {className:'small', textContent:'Birkaç dakika sonra, bakmadan hatırla: Türkçesini gör, hedef dilde söyle, sonra aç. Bilemediklerin sona eklenir. Hatırlamaya çalışmak, tekrar okumaktan daha kalıcıdır.'}),
-    selfQuiz([...lesson.w.map(([t, tr, pron], wi) => [t, tr, pron, emojiFor(getLessonDay() - 1, wi)]), ...lesson.p], voice),
+    ...freqSection(voice),
+    selfQuiz([...lesson.w.map(([t, tr, pron], wi) => [t, tr, pron, emojiFor(getLessonDay() - 1, wi)]), ...lesson.p, ...(freqToday()?.items || []).map(([t, tr, pron, , , emo]) => [t, tr, pron, emo])], voice),
     doneRow('lesson', i + 1)
   ];
 }
@@ -329,7 +370,7 @@ function sayAsync(text, lang, rate, run) {
 }
 function drillItems() {
   const lesson = todayLesson();
-  return [...lesson.w.map((x, wi) => ({tr: emojiFor(getLessonDay() - 1, wi) ? `${emojiFor(getLessonDay() - 1, wi)} ${x[1]}` : x[1], t:x[0], pron:x[2]})), ...lesson.p.map(x => ({tr:x[1], t:x[0]})), ...dueCards(active, 10).map(c => ({tr:c.tr, t:c.target, pron:c.pron}))];
+  return [...lesson.w.map((x, wi) => ({tr: emojiFor(getLessonDay() - 1, wi) ? `${emojiFor(getLessonDay() - 1, wi)} ${x[1]}` : x[1], t:x[0], pron:x[2]})), ...lesson.p.map(x => ({tr:x[1], t:x[0]})), ...(freqToday()?.items || []).map(x => ({tr:x[1], t:x[0], pron:x[2]})), ...dueCards(active, 10).map(c => ({tr:c.tr, t:c.target, pron:c.pron}))];
 }
 async function startDrill() {
   if (!('speechSynthesis' in window)) { $('#drillL1').textContent = 'Bu tarayıcı seslendirmeyi desteklemiyor.'; return; }
@@ -371,6 +412,14 @@ function renderRes(target, items) {
 // ---------- İlerleme ----------
 function studiedOn(date, lang = active) { return tasks.some(t => isDone(t, lang, date)); }
 function getStreak() { let s = 0; for (let i = studiedOn(localDate()) ? 0 : 1; i < 365; i++) { if (studiedOn(localDate(-i))) s++; else break; } return s; }
+function renderFreqCard() {
+  const box = $('#freqCard'); if (!box) return;
+  const st = freqState(), total = freqList().length, seen = Math.min(total, st.done * FREQ_BATCH);
+  $('#freqProgress').textContent = total ? `${seen} / ${total} kelime · kalan yaklaşık ${Math.ceil((total - seen) / FREQ_BATCH)} gün` : 'Bu dil için liste yüklenemedi.';
+  $('#freqBar').style.width = total ? `${seen / total * 100}%` : '0';
+  $('#freqToggle').checked = st.on;
+}
+$('#freqToggle').onchange = e => { const st = freqState(); st.on = e.target.checked; saveFreqState(active, st); render(); };
 function renderProgress() {
   const l = languages[active], day = getLessonDay();
   $('#progressTitle').textContent = `${l.name} ilerlemesi`;
@@ -407,7 +456,7 @@ function render() {
   renderLangs(); renderToday();
   renderRes('#audioRes', window.MEDIA?.[active]?.audio); renderRes('#videoRes', window.MEDIA?.[active]?.video);
   if (!drill.playing) { $('#drillInfo').textContent = `Bugün: ${drillItems().length} ifade · yaklaşık ${Math.ceil(drillItems().length * 12 / 60)} dakika. Ekranın açık kalması gerekir.`; }
-  renderProgress(); renderVoiceSettings();
+  renderProgress(); renderVoiceSettings(); renderFreqCard();
 }
 
 // ---------- Odak sayacı ----------
@@ -434,7 +483,7 @@ function setDataStatus(text, isError = false) { const e = $('#dataStatus'); e.te
 $('#exportData').onclick = () => {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (TASK_KEY.test(k) && store.get(k) === '1') data[k] = '1'; }
-  const srs = loadSrs().cards, backup = {app:'dil-atlasi', schemaVersion:1, exportedAt:new Date().toISOString(), settings:{active, timer:duration}, tasks:data, srs, srsVersion:2, notes:loadNotes().items};
+  const srs = loadSrs().cards, backup = {app:'dil-atlasi', schemaVersion:1, exportedAt:new Date().toISOString(), settings:{active, timer:duration}, tasks:data, srs, srsVersion:2, notes:loadNotes().items, freq: (() => { try { return JSON.parse(store.get(FREQ_KEY)) || {}; } catch { return {}; } })()};
   const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'}));
   const a = el('a', {href:url, download:`dil-atlasi-yedek-${localDate()}.json`}); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   setDataStatus(`${Object.keys(data).length} görev kaydı ve ${Object.keys(srs).length} tekrar kartı indirildi.`);
@@ -454,6 +503,9 @@ $('#importFile').onchange = async e => {
       const s = loadSrs();
       for (const [id, c] of Object.entries(backup.srs)) { if (!CARD_ID.test(id) || !c || !Number.isInteger(c.b) || c.b < 0 || c.b >= INTERVALS.length || !DATE.test(c.d)) continue; if (!s.cards[id] || c.b > s.cards[id].b) s.cards[id] = {b:c.b, d:c.d}; }
       saveSrs(s);
+    }
+    if (backup.freq && typeof backup.freq === 'object') {
+      for (const lang of Object.keys(languages)) { const x = backup.freq[lang]; if (!x || !Number.isInteger(x.done) || x.done < 0 || x.done > 200) continue; const st = freqState(lang); if (x.done > st.done) saveFreqState(lang, {on: x.on !== false, done: x.done, last: DATE_RE.test(x.last || '') ? x.last : ''}); }
     }
     if (backup.notes && typeof backup.notes === 'object') {
       const n = loadNotes();
@@ -476,6 +528,7 @@ $('#resetLang').onclick = () => {
   keys.forEach(store.del);
   const s = loadSrs(); Object.keys(s.cards).forEach(id => { if (id.startsWith(active + ':')) delete s.cards[id]; }); saveSrs(s);
   const n = loadNotes(); Object.keys(n.items).forEach(id => { if (id.startsWith(active + ':')) delete n.items[id]; }); saveNotes(n);
+  saveFreqState(active, {on: freqState().on, done: 0, last: ''});
   openStep = null; render(); switchTab('bugun');
 };
 
