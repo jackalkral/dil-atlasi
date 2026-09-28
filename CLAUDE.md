@@ -17,7 +17,10 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 ## Öğrenme planı
 
 - Dört dil de sıfırdan (A0). Kullanıcı dili kendisi seçer; uygulama sıralama dayatmaz.
-- Dört dilde aynı 30 konu aynı sırayla (ortak müfredat). Her ders: t başlık, n Türkçe ipucu, w 8 kelime, p 5 cümle.
+- Dört dilde aynı 30 konu aynı sırayla (ortak müfredat). Her ders: t başlık, n Türkçe ipucu, w 8 × [kelime, Türkçe, okunuş], p 5 × [cümle, Türkçe].
+- Okunuş kuralları: Türkçe harfler, heceler tireyle, vurgulu hece BÜYÜK; Fransızca genizden ünlü = ünlü + ñ; İtalyanca çift ünsüz yazılır.
+- Ses: `utter()` her seslendirmede `voiceFor()` ile sesi seçer (kullanıcı seçimi `dil-atlasi-voices`, yoksa en yüksek `voiceScore`). Hız çarpanı `dil-atlasi-rate`. Doğal ses için kalıcı çözüm cihaza Premium/Enhanced ses indirmek ya da derleme sırasında üretilmiş ses dosyaları (lisans ve boyut değerlendirilmeli).
+- `dil-atlasi-sifirlama-2026-09` tek seferlik sıfırlama bayrağıdır; kaldırma, yoksa kullanıcının verisi yeniden silinir.
 - Sekmeler bağlama göre: Bugün (iş molası), Dinle (yürüyüş, eller serbest), İzle (akşam TV), İlerleme.
 - Bugün aşamaları görev kodlarına bağlı: `review` = tekrar kartları, `lesson` = kelime + cümle + cümle kurma, `shadow` = ses çalışması (bitince kendiliğinden işaretlenir), `speak` = konuşma + ChatGPT/Claude.
 - Ders günü = o dilde bugünden önce çalışılan gün sayısı + 1 (`getLessonDay`); ayrı anahtar yoktur.
@@ -75,7 +78,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 
 ## Kabul testi
 
-Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (38 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (45 kontrol). Her değişiklikten sonra ikisi de geçmeli.
 
 
 - Dört dil arasında geçiş yapılabiliyor.

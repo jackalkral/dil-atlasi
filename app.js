@@ -24,6 +24,20 @@ const key = (type, lang = active, date = localDate()) => `da:${type}:${lang}:${d
 const isDone = (t, lang = active, date = localDate()) => store.get(key(t, lang, date)) === '1';
 function setDone(t, on = true) { on ? store.set(key(t), '1') : store.del(key(t)); render(); }
 
+// Tek seferlik sıfırlama (Eylül 2026, kullanıcı isteği): dört dil ders 1'den başlar.
+// Silinen kayıtlar kaybolmaz; dil-atlasi-sifirlama-yedegi anahtarında JSON olarak saklanır.
+const RESET_FLAG = 'dil-atlasi-sifirlama-2026-09';
+if (!store.get(RESET_FLAG)) {
+  try {
+    const backup = {}, keys = [];
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (/^da:/.test(k) || k === 'dil-atlasi-srs') keys.push(k); }
+    keys.forEach(k => { backup[k] = store.get(k); });
+    if (keys.length) store.set('dil-atlasi-sifirlama-yedegi', JSON.stringify(backup));
+    keys.forEach(k => store.del(k));
+  } catch {}
+  store.set(RESET_FLAG, '1');
+}
+
 let active = languages[store.get('dil-atlasi-active')] ? store.get('dil-atlasi-active') : 'en';
 let tab = TABS.includes(store.get('dil-atlasi-tab')) ? store.get('dil-atlasi-tab') : 'bugun';
 let openStep = null;
@@ -39,10 +53,34 @@ function getLessonDay(lang = active) {
 const todayLesson = () => lessonsFor()[getLessonDay() - 1];
 
 // ---------- Seslendirme ----------
+// Ses kalitesi cihazdaki seslere bağlıdır. Otomatik seçim "Premium/Enhanced/Natural/Neural/Google" sesleri öne alır,
+// Apple'ın eğlence ve Eloquence seslerini (robotik) geri iter. Kullanıcı İlerleme sekmesinden ses ve hız seçebilir.
+const VOICE_KEY = 'dil-atlasi-voices', RATE_KEY = 'dil-atlasi-rate';
+const ROBOTIC = /\b(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Ralph|Kathy|Deranged|Hysterical|Pipe Organ|Princess|Grandma|Grandpa|Eddy|Flo|Reed|Rocko|Sandy|Shelley)\b/i;
+const voiceList = lang => ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).filter(v => v.lang.replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2).toLowerCase()));
+function voiceScore(v, lang) {
+  let s = 0;
+  if (/premium|enhanced|geliştirilmiş|natural|neural|wavenet|siri/i.test(v.name)) s += 6;
+  if (/google/i.test(v.name)) s += 3;
+  if (v.lang.replace('_', '-').toLowerCase() === lang.toLowerCase()) s += 2;
+  if (ROBOTIC.test(v.name)) s -= 10;
+  if (v.default) s += 1;
+  return s;
+}
+const chosenVoices = () => { try { return JSON.parse(store.get(VOICE_KEY)) || {}; } catch { return {}; } };
+function voiceFor(lang) {
+  const list = voiceList(lang), pick = chosenVoices()[lang.slice(0, 2)];
+  return list.find(v => v.voiceURI === pick) || list.sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang))[0] || null;
+}
+const rateFactor = () => [0.8, 1, 1.15].includes(+store.get(RATE_KEY)) ? +store.get(RATE_KEY) : 1;
+function utter(text, lang, rate) {
+  const u = new SpeechSynthesisUtterance(text), v = voiceFor(lang);
+  u.lang = v?.lang || lang; if (v) u.voice = v; u.rate = rate * rateFactor();
+  return u;
+}
 function speak(text, lang = languages[active].voice, rate = .85) {
   if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = rate; speechSynthesis.speak(u);
+  speechSynthesis.cancel(); speechSynthesis.speak(utter(text, lang, rate));
 }
 const speakBtn = (text, lang) => el('button', {type:'button', className:'speak', textContent:'▶', ariaLabel:`Seslendir: ${text}`, onclick: () => speak(text, lang)});
 
@@ -61,7 +99,7 @@ function saveSrs(s) { store.set(SRS_KEY, JSON.stringify(s)); }
 function dueCards(lang = active, limit = 60) {
   const cards = loadSrs().cards, all = lessonsFor(lang), today = localDate(), out = [];
   for (let li = 0; li < getLessonDay(lang) - 1; li++) {
-    const add = (kind, [target, tr], i) => { const id = `${lang}:${li}:${kind}${i}`, c = cards[id]; if (!c || c.d <= today) out.push({id, target, tr, box: c ? c.b : -1, due: c ? c.d : ''}); };
+    const add = (kind, [target, tr, pron], i) => { const id = `${lang}:${li}:${kind}${i}`, c = cards[id]; if (!c || c.d <= today) out.push({id, target, tr, pron, box: c ? c.b : -1, due: c ? c.d : ''}); };
     all[li].w.forEach((x, i) => add('w', x, i)); all[li].p.forEach((x, i) => add('s', x, i));
   }
   return out.sort((a, b) => a.due.localeCompare(b.due)).slice(0, limit);
@@ -153,18 +191,18 @@ function flashcard(due, voice, i) {
   reveal.onclick = () => {
     speak(c.target, voice);
     const grade = ok => { gradeCard(c.id, c.box, ok); if (dueCards().length === 0) { store.set(key('review'), '1'); openStep = i + 1; } render(); $('#steps .flash .btn, #steps .step.open .btn')?.focus(); };
-    reveal.replaceWith(el('div', {className:'a'}, el('span', {textContent:c.target}), speakBtn(c.target, voice)),
+    reveal.replaceWith(el('div', {className:'a'}, el('span', {textContent:c.target}), speakBtn(c.target, voice)), c.pron ? el('div', {className:'pron', textContent:`okunuşu: ${c.pron}`}) : '',
       el('div', {className:'actions'}, el('button', {type:'button', className:'btn secondary', textContent:'Tekrar et', onclick: () => grade(false)}), el('button', {type:'button', className:'btn', textContent:'Bildim', onclick: () => grade(true)})));
     box.querySelector('.actions .btn:last-child').focus();
   };
   return box;
 }
 function lessonBody(lesson, voice, i) {
-  const words = el('div', {className:'items'}, ...lesson.w.map(([t, tr]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), el('span', {textContent:tr})), speakBtn(t, voice))));
+  const words = el('div', {className:'items'}, ...lesson.w.map(([t, tr, pron]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), pron ? el('span', {className:'pron', textContent:`[${pron}]`}) : '', el('span', {textContent:tr})), speakBtn(t, voice))));
   const sentences = el('div', {className:'items'}, ...lesson.p.map(([t, tr]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), el('span', {textContent:tr})), speakBtn(t, voice))));
-  const playAll = list => { let k = 0; const next = () => { if (k >= list.length) return; const u = new SpeechSynthesisUtterance(list[k++][0]); u.lang = voice; u.rate = .8; u.onend = () => setTimeout(next, 700); speechSynthesis.speak(u); }; speechSynthesis.cancel(); next(); };
+  const playAll = list => { let k = 0; const next = () => { if (k >= list.length) return; const u = utter(list[k++][0], voice, .8); u.onend = () => setTimeout(next, 700); speechSynthesis.speak(u); }; speechSynthesis.cancel(); next(); };
   return [
-    el('div', {className:'eyebrow', textContent:'1 · Kelimeler'}), el('p', {className:'small', textContent:'Her kelimeyi dinle ve iki kez yüksek sesle söyle.'}),
+    el('div', {className:'eyebrow', textContent:'1 · Kelimeler'}), el('p', {className:'small', textContent:'Her kelimeyi dinle ve iki kez yüksek sesle söyle. Köşeli parantez Türkçe okunuştur; BÜYÜK hece vurguludur' + (active === 'fr' ? ', ñ: n\'yi söyleme, sesi burundan ver.' : '.')}),
     el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.w)}), words,
     el('div', {className:'eyebrow mt', textContent:'2 · Cümleler'}), el('p', {className:'small', textContent:'Aynı kelimeler cümle içinde. Dinle, sonra ekrana bakmadan söylemeyi dene.'}),
     el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.p)}), sentences,
@@ -224,7 +262,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function sayAsync(text, lang, rate, run) {
   return new Promise(res => {
     if (drill.run !== run) return res();
-    const u = new SpeechSynthesisUtterance(text); u.lang = lang; u.rate = rate;
+    const u = utter(text, lang, rate);
     const t = setTimeout(res, Math.max(4000, text.length * 180)); // onend bazı tarayıcılarda gelmeyebilir
     u.onend = u.onerror = () => { clearTimeout(t); res(); };
     speechSynthesis.speak(u);
@@ -232,7 +270,7 @@ function sayAsync(text, lang, rate, run) {
 }
 function drillItems() {
   const lesson = todayLesson();
-  return [...lesson.w.map(x => ({tr:x[1], t:x[0]})), ...lesson.p.map(x => ({tr:x[1], t:x[0]})), ...dueCards(active, 10).map(c => ({tr:c.tr, t:c.target}))];
+  return [...lesson.w.map(x => ({tr:x[1], t:x[0], pron:x[2]})), ...lesson.p.map(x => ({tr:x[1], t:x[0]})), ...dueCards(active, 10).map(c => ({tr:c.tr, t:c.target, pron:c.pron}))];
 }
 async function startDrill() {
   if (!('speechSynthesis' in window)) { $('#drillL1').textContent = 'Bu tarayıcı seslendirmeyi desteklemiyor.'; return; }
@@ -245,7 +283,7 @@ async function startDrill() {
     $('#drillLabel').textContent = `${k + 1}/${items.length}`; $('#drillL1').textContent = it.tr; $('#drillL2').textContent = '…';
     await sayAsync(it.tr, 'tr-TR', 1, run); await sleep(gap());
     if (drill.run !== run) break;
-    $('#drillL2').textContent = it.t;
+    $('#drillL2').textContent = it.t; $('#drillPron').textContent = it.pron ? `[${it.pron}]` : '';
     await sayAsync(it.t, voice, .8, run); await sleep(900);
     await sayAsync(it.t, voice, .8, run); await sleep(1200);
   }
@@ -284,12 +322,31 @@ function renderProgress() {
   $('#lessonList').replaceChildren(...lessonsFor().map((ls, k) => el('li', {className: k < day - 1 ? 'done' : k === day - 1 ? 'current' : '', textContent:ls.t})));
 }
 
+function renderVoiceSettings() {
+  const l = languages[active], sel = $('#voiceSelect'), trSel = $('#trVoiceSelect');
+  if (!sel) return;
+  const fill = (select, lang) => {
+    const list = voiceList(lang).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang)), pick = chosenVoices()[lang.slice(0, 2)];
+    select.replaceChildren(el('option', {value:'', textContent:`Otomatik (en doğal: ${voiceFor(lang)?.name || 'cihaz sesi yok'})`}), ...list.map(v => el('option', {value:v.voiceURI, textContent:`${v.name} · ${v.lang}${voiceScore(v, lang) >= 6 ? ' ★' : ''}`, selected: v.voiceURI === pick})));
+  };
+  $('#voiceLangLabel').textContent = `${l.name} sesi`; fill(sel, l.voice); fill(trSel, 'tr-TR');
+  document.querySelectorAll('input[name=rate]').forEach(i => { i.checked = +i.value === rateFactor(); });
+  const good = voiceList(l.voice).some(v => voiceScore(v, l.voice) >= 6);
+  $('#voiceHint').textContent = good ? 'Cihazında doğal (★) bir ses var ve otomatik seçildi.' : 'Cihazında bu dil için doğal bir ses bulunamadı. Aşağıdaki adımlarla ücretsiz indirebilirsin.';
+}
+const saveVoice = (lang, uri) => { const v = chosenVoices(); if (uri) v[lang] = uri; else delete v[lang]; store.set(VOICE_KEY, JSON.stringify(v)); renderVoiceSettings(); };
+$('#voiceSelect').onchange = e => { saveVoice(active, e.target.value); speak(todayLesson().p[0][0]); };
+$('#trVoiceSelect').onchange = e => { saveVoice('tr', e.target.value); speak('Merhaba, bugün birlikte çalışalım.', 'tr-TR', 1); };
+$('#voiceTest').onclick = () => speak(todayLesson().p[0][0]);
+document.querySelectorAll('input[name=rate]').forEach(i => { i.onchange = () => { store.set(RATE_KEY, i.value); speak(todayLesson().p[0][0]); }; });
+if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', renderVoiceSettings);
+
 function render() {
   document.documentElement.style.setProperty('--lang', languages[active].color);
   renderLangs(); renderToday();
   renderRes('#audioRes', window.MEDIA?.[active]?.audio); renderRes('#videoRes', window.MEDIA?.[active]?.video);
   if (!drill.playing) { $('#drillInfo').textContent = `Bugün: ${drillItems().length} ifade · yaklaşık ${Math.ceil(drillItems().length * 12 / 60)} dakika. Ekranın açık kalması gerekir.`; }
-  renderProgress();
+  renderProgress(); renderVoiceSettings();
 }
 
 // ---------- Odak sayacı ----------

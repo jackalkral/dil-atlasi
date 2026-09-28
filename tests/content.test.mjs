@@ -24,7 +24,9 @@ for (const lang of LANGS) {
     check(typeof l.n === 'string' && l.n.length > 10 && l.n.length <= 160, `${where}: ipucu 10–160 karakter olmalı`);
     check(l.w.length === 8, `${where}: 8 kelime olmalı`);
     check(l.p.length === 5, `${where}: 5 cümle olmalı`);
-    [...l.w, ...l.p].forEach(x => check(x.length === 2 && x.every(s => typeof s === 'string' && s.trim()), `${where}: boş öğe var`));
+    l.w.forEach(x => check(x.length === 3 && x.every(s => typeof s === 'string' && s.trim()), `${where}: kelime [hedef, Türkçe, okunuş] olmalı (${x[0]})`));
+    l.w.forEach(x => check(/[A-ZÇĞİÖŞÜ]/.test(x[2] || '') && !/[<>]/.test(x[2] || ''), `${where}: okunuşta vurgulu hece BÜYÜK harfle olmalı (${x[0]} → ${x[2]})`));
+    l.p.forEach(x => check(x.length === 2 && x.every(s => typeof s === 'string' && s.trim()), `${where}: boş cümle var`));
     check(new Set(l.w.map(w => w[0])).size === 8, `${where}: tekrarlanan kelime var`);
     l.p.forEach(([s]) => {
       check(s.split(/\s+/).length >= 2, `${where}: cümle kurma için en az 2 kelime gerekli ("${s}")`);

@@ -129,3 +129,12 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 }
 @media (max-width:420px){.brand .name{display:none}.lang-chip{padding:7px 9px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* Okunuş ve ses ayarları */
+.item .pron,.pron{display:block;font-size:.8rem;color:var(--warm);font-weight:700;letter-spacing:.02em}
+.player .now .pron{font-size:.95rem}
+.flash .pron{margin:-4px 0 10px}
+.field{display:grid;gap:4px;margin-top:10px;font-size:.84rem;color:var(--muted)}
+.field select{width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit}
+.options.left{justify-content:flex-start}.mt-s{margin-top:12px}
+.howto-voice{margin-top:12px}.howto-voice summary{cursor:pointer;color:var(--lang);font-weight:700;font-size:.9rem}

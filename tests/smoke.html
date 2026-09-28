@@ -28,14 +28,26 @@
   // Kullanıcının verisini yedekle.
   const saved = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); saved[k] = localStorage.getItem(k); }
   const frame = document.getElementById('app');
-  const load = async () => { frame.src = '../index.html?test=' + Date.now(); await new Promise(r => frame.onload = r); await wait(150); const w = frame.contentWindow; w.speechSynthesis.speak = u => w.setTimeout(() => u.onend && u.onend(), 5); w.speechSynthesis.cancel = () => {}; const st = w.setTimeout.bind(w); w.setTimeout = (f, ms) => st(f, Math.min(ms, 5)); w.confirm = () => true; w.cspViolations = []; w.document.addEventListener('securitypolicyviolation', e => w.cspViolations.push(e.violatedDirective + ' ' + e.blockedURI)); return w; };
+  const FLAG = 'dil-atlasi-sifirlama-2026-09';
+  const load = async (keepFlag = true) => { if (keepFlag) localStorage.setItem(FLAG, '1'); frame.src = '../index.html?test=' + Date.now(); await new Promise(r => frame.onload = r); await wait(150); const w = frame.contentWindow; w.speechSynthesis.speak = u => w.setTimeout(() => u.onend && u.onend(), 5); w.speechSynthesis.cancel = () => {}; const st = w.setTimeout.bind(w); w.setTimeout = (f, ms) => st(f, Math.min(ms, 5)); w.confirm = () => true; w.cspViolations = []; w.document.addEventListener('securitypolicyviolation', e => w.cspViolations.push(e.violatedDirective + ' ' + e.blockedURI)); return w; };
 
   try {
+    // 0) Tek seferlik sıfırlama: eski kayıtlar silinir ama yedeklenir, diğer ayarlar kalır
+    localStorage.clear(); localStorage.setItem(`da:lesson:en:${day(-3)}`, '1'); localStorage.setItem('dil-atlasi-srs', '{"v":2,"cards":{}}'); localStorage.setItem('dil-atlasi-timer', '45');
+    await load(false);
+    check(localStorage.getItem(`da:lesson:en:${day(-3)}`) === null && localStorage.getItem('dil-atlasi-srs') === null, 'Tek seferlik sıfırlama eski kayıtları sildi');
+    check(JSON.parse(localStorage.getItem('dil-atlasi-sifirlama-yedegi') || '{}')[`da:lesson:en:${day(-3)}`] === '1', 'Silinen kayıtlar yedek anahtarında');
+    check(localStorage.getItem('dil-atlasi-timer') === '45' && localStorage.getItem(FLAG) === '1', 'Ayarlar korundu, sıfırlama bir kez çalıştı');
+    localStorage.setItem(`da:lesson:en:${day(-1)}`, '1'); await load(false);
+    check(localStorage.getItem(`da:lesson:en:${day(-1)}`) === '1', 'Sıfırlama ikinci açılışta tekrar çalışmadı');
+
     // 1) Temiz kurulum
     localStorage.clear();
     let w = await load(), $ = s => w.document.querySelector(s), $$ = s => [...w.document.querySelectorAll(s)];
     check($('#lessonPill').textContent === 'Ders 1/30', 'Temiz kurulumda Ders 1/30', $('#lessonPill').textContent);
     check($('#lessonTitle').textContent === 'Selamlaşma', 'İlk ders başlığı Selamlaşma');
+    check($$('.step.open .item .pron').length === 8, 'Sekiz kelimenin Türkçe okunuşu görünüyor', $$('.step.open .item .pron').map(e => e.textContent).slice(0, 3).join(' '));
+    check(!!$('#voiceSelect') && $('#voiceSelect').options.length >= 1 && !!$('#trVoiceSelect'), 'Ses seçici var');
     check($$('.step').length === 4, '4 aşama görünüyor');
     check($$('.lang-chip').length === 4, '4 dil düğmesi var');
     check(!w.document.getElementById('panel-bugun').hidden && w.document.getElementById('panel-yuru').hidden, 'Varsayılan sekme Bugün');
@@ -64,6 +76,8 @@
     $('#tab-yuru').click(); $('#drillPlay').click();
     for (let i = 0; i < 100 && !$('#drillL1').textContent.startsWith('Bitti'); i++) await wait(50);
     check($('#drillL1').textContent.startsWith('Bitti'), 'Ses çalışması tamamlandı');
+    w.document.querySelector('input[name=rate][value="0.8"]').click();
+    check(localStorage.getItem('dil-atlasi-rate') === '0.8', 'Konuşma hızı kaydedildi');
     check(localStorage.getItem(`da:shadow:fr:${today}`) === '1', 'Ses çalışması bitince shadow işaretlendi');
     check($$('#audioRes a').length >= 2, 'Dinle: podcast bağlantıları var');
 

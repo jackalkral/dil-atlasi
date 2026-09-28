@@ -46,7 +46,7 @@
       <div class="panel-head"><h1>Yürürken dinle</h1><p>Köpeğini gezdirirken ya da yolda: Türkçesini duy, yüksek sesle söylemeyi dene, sonra doğrusunu dinle.</p></div>
       <div class="card player">
         <div class="eyebrow" id="drillLabel">Bugünün ses çalışması</div>
-        <div class="now" aria-live="polite"><span class="l1" id="drillL1">Başlat'a dokun.</span><span class="l2" id="drillL2"></span></div>
+        <div class="now" aria-live="polite"><span class="l1" id="drillL1">Başlat'a dokun.</span><span class="l2" id="drillL2"></span><span class="pron" id="drillPron"></span></div>
         <div class="player-controls"><button class="btn big" id="drillPlay" type="button">▶ Başlat</button><button class="btn secondary big stop" id="drillStop" type="button">■ Durdur</button></div>
         <div class="options" role="radiogroup" aria-label="Duraklama süresi">
           <label><input type="radio" name="gap" value="2"><span>Kısa ara</span></label>
@@ -95,6 +95,24 @@
         <div class="timer-row"><div><div class="timer-display" id="timerDisplay">25:00</div>
           <fieldset class="duration" id="timerDuration"><legend>Sayaç süresi</legend><label><input type="radio" name="duration" value="25"><span>25 dk</span></label><label><input type="radio" name="duration" value="45"><span>45 dk</span></label><label><input type="radio" name="duration" value="60"><span>60 dk</span></label></fieldset></div>
           <div class="row"><button class="btn" id="timerToggle" type="button">Başlat</button><button class="btn secondary" id="timerReset" type="button">Sıfırla</button></div></div>
+      </div>
+      <div class="card">
+        <h2>Ses ve telaffuz</h2>
+        <p class="small" id="voiceHint"></p>
+        <label class="field"><span id="voiceLangLabel">Ses</span><select id="voiceSelect"></select></label>
+        <label class="field"><span>Türkçe ses (Dinle sekmesi)</span><select id="trVoiceSelect"></select></label>
+        <div class="options left" role="radiogroup" aria-label="Konuşma hızı">
+          <label><input type="radio" name="rate" value="0.8"><span>Yavaş</span></label>
+          <label><input type="radio" name="rate" value="1"><span>Normal</span></label>
+          <label><input type="radio" name="rate" value="1.15"><span>Hızlı</span></label>
+        </div>
+        <div class="row mt-s"><button class="btn secondary" id="voiceTest" type="button">▶ Sesi dene</button></div>
+        <details class="howto-voice">
+          <summary>Daha doğal ses nasıl indirilir? (ücretsiz)</summary>
+          <p class="small"><strong>iPhone / iPad:</strong> Ayarlar → Erişilebilirlik → Sesli İçerik → Sesler → dili seç (İngilizce, Fransızca…) → adında <em>Premium</em> ya da <em>Gelişmiş</em> yazan bir sesi indir. Türkçe için de aynısını yap. Sonra uygulamayı kapatıp aç; ★ işaretli ses otomatik seçilir.</p>
+          <p class="small"><strong>Android:</strong> Ayarlar → Erişilebilirlik (ya da Sistem → Diller) → Metin okuma çıkışı → Google Konuşma Hizmetleri → ⚙ → Ses verilerini yükle → dili seç ve yüksek kaliteli sesi indir.</p>
+          <p class="small"><strong>Mac / bilgisayar:</strong> Chrome ve Edge'de "Google" ve "Natural" adlı çevrimiçi sesler çoğu zaman en doğal olanlardır.</p>
+        </details>
       </div>
       <div class="card">
         <h2>Neden bu yöntem?</h2>

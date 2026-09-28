@@ -15,7 +15,8 @@ Canlı adres: https://jackalkral.github.io/dil-atlasi/
 | **İzle** | Akşam TV karşısında | Seviyeye göre video/dizi önerileri, hedef dilde altyazı rehberi |
 | **İlerleme** | — | Seri, 28 gün, 30 günlük rota, odak sayacı, yöntem, yedekleme |
 
-- Her dilde aynı 30 konu (selamlaşma → kendini anlatma); her derste 8 kelime ve 5 cümle.
+- Her dilde aynı 30 konu (selamlaşma → kendini anlatma); her derste 8 kelime ve 5 cümle. Kelimelerin Türkçe harflerle okunuşu var (BÜYÜK hece vurgulu; Fransızcada ñ = genizden).
+- Ses: cihazdaki en doğal ses (Premium/Enhanced/Natural/Google) otomatik seçilir; İlerleme → Ses ve telaffuz'dan ses ve hız değiştirilebilir, doğal ses indirme rehberi oradadır.
 - Aralıklı tekrar: önceki derslerin kelime ve cümleleri kart olur; bilinen kart 1 → 3 → 7 → 14 → 30 gün sonra döner.
 - Hangi dili ne zaman çalışacağına sen karar verirsin. Fransızca ile İtalyancayı aynı gün çalışmamak önerilir (benzer diller karışır).
 
@@ -25,7 +26,7 @@ Canlı adres: https://jackalkral.github.io/dil-atlasi/
 index.html            # Arayüz iskeleti (sekme ve paneller)
 styles.css            # Stil
 app.js                # Uygulama mantığı
-content/{en,fr,it,de}.js  # 30'ar derslik içerik: t başlık, n ipucu, w kelimeler, p cümleler
+content/{en,fr,it,de}.js  # 30'ar derslik içerik: t başlık, n ipucu, w [kelime, Türkçe, okunuş], p [cümle, Türkçe]
 content/media.js      # Dinle ve İzle sekmelerinin doğrulanmış kaynakları
 sw.js                 # Çevrimdışı uygulama kabuğu ve güncelleme bildirimi
 manifest.webmanifest, icons/
@@ -63,6 +64,8 @@ Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 - Aktif dil: `dil-atlasi-active` · Açık sekme: `dil-atlasi-tab`
 - Aşamalar: `da:{görev}:{dil}:{YYYY-MM-DD}` — görevler `review`, `lesson`, `shadow`, `speak`; diller `en`, `fr`, `it`, `de`
 - Sayaç süresi: `dil-atlasi-timer` (`25`, `45`, `60`)
+- Ses seçimi: `dil-atlasi-voices` (`{ "en": voiceURI, "tr": voiceURI }`), hız: `dil-atlasi-rate` (`0.8`, `1`, `1.15`)
+- Tek seferlik sıfırlama (Eylül 2026): `dil-atlasi-sifirlama-2026-09` bayrağı; silinen kayıtlar `dil-atlasi-sifirlama-yedegi` anahtarında JSON olarak durur.
 - İlerleme sekmesindeki **Bu dilde baştan başla** yalnızca seçili dilin kayıtlarını ve kartlarını siler.
 - Tekrar kartları: `dil-atlasi-srs` — `{ v: 2, cards: { "en:0:w3": { b: kutu, d: "YYYY-MM-DD" } } }` (w = kelime, s = cümle). Eski v1 kartlar `dil-atlasi-srs-v1` anahtarında saklanır.
 
