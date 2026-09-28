@@ -89,6 +89,33 @@
     check(gpt.href.startsWith('https://chatgpt.com/?q=') && gpt.rel === 'noopener noreferrer', 'ChatGPT bağlantısı doğru ve noopener');
     check(q.includes(w.LESSONS.fr[0].t) && !q.includes('localStorage'), 'Mesaj günün dersini içeriyor');
 
+    check(/EN FAZLA 2/.test(q) && /senaryo/.test(q), 'Mesaj senaryo ve en fazla 2 düzeltme kuralı içeriyor');
+
+    // 5b) Hata defteri: kullanıcı girdisi metin olarak saklanır, günde en fazla 2
+    const xss = '<img src=x onerror=alert(1)>Je suis là.';
+    const [inT, inTr] = $$('.step.open .note-form input'); inT.value = xss; inTr.value = 'Buradayım.';
+    $$('.step.open .note-form .btn')[0].click();
+    const notes = JSON.parse(localStorage.getItem('dil-atlasi-notlar'));
+    const noteVals = Object.values(notes.items);
+    check(noteVals.length === 1 && noteVals[0].t === xss && noteVals[0].d === today, 'Hata defterine not eklendi (metin olarak)');
+    const [inT2] = $$('.step.open .note-form input'); inT2.value = 'Deuxième phrase.'; $$('.step.open .note-form .btn')[0].click();
+    check($$('.step.open .note-form .btn')[0].disabled, 'Günde 2 nottan sonra ekleme kapandı');
+    check(!w.document.querySelector('img[src="x"]'), 'Not içeriği HTML olarak çalışmadı');
+
+    // 5c) Aynı gün kendini sına
+    const h2 = $$('.step-head'); if (h2[1].getAttribute('aria-expanded') !== 'true') h2[1].click();
+    $$('.step.open .btn').find(b => b.textContent.startsWith('▶ Testi başlat')).click();
+    let qn = 0; while ($$('.step.open .flash').length && qn < 40) { const f = $$('.step.open .flash').pop(); f.querySelector('.btn').click(); const b = [...f.querySelectorAll('.actions .btn')]; (qn === 0 ? b[0] : b[1]).click(); qn++; }
+    check(qn === 14 && /13 öğeyi hatırladın/.test($('.step.open')?.textContent || ''), 'Kendini sına: 13 öğe, bilinmeyen sona döndü', `tur=${qn}`);
+
+    // 5d) Ertesi gün hata defteri kartı tekrar kuyruğunda (text olarak)
+    const nn = JSON.parse(localStorage.getItem('dil-atlasi-notlar')); Object.values(nn.items).forEach(x => x.d = day(-1)); localStorage.setItem('dil-atlasi-notlar', JSON.stringify(nn));
+    localStorage.setItem(`da:lesson:fr:${day(-1)}`, '1');
+    w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    const cardsFr = w.dueCards('fr').filter(c => c.id.includes(':n:'));
+    check(cardsFr.length === 2 && cardsFr.some(c => c.target === xss), 'Hata defteri kartları ertesi gün tekrarda');
+    check(!w.document.querySelector('img[src="x"]'), 'Kart gösteriminde HTML çalışmadı');
+
     // 6) Ertesi gün: ders ilerler, tekrar kartları gelir
     localStorage.clear(); localStorage.setItem('dil-atlasi-active', 'en'); localStorage.setItem(`da:lesson:en:${day(-1)}`, '1');
     w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
@@ -104,6 +131,7 @@
     let blob; const oc = w.URL.createObjectURL; w.URL.createObjectURL = b => { blob = b; return oc(b); }; w.HTMLAnchorElement.prototype.click = function () {};
     $('#exportData').click(); const backup = JSON.parse(await blob.text());
     check(backup.schemaVersion === 1 && backup.srsVersion === 2 && Object.keys(backup.srs).length === 13, 'Yedek görevleri ve 13 kartı içeriyor');
+    check(backup.notes && typeof backup.notes === 'object', 'Yedek hata defterini içeriyor');
     const imp = async data => { const dt = new w.DataTransfer(); dt.items.add(new w.File([typeof data === 'string' ? data : JSON.stringify(data)], 'b.json')); $('#importFile').files = dt.files; $('#importFile').dispatchEvent(new w.Event('change')); await wait(100); return $('#dataStatus'); };
     check((await imp('{bozuk')).classList.contains('error'), 'Bozuk JSON reddedildi');
     backup.srs['<img>'] = {b:1, d:today}; backup.srs['en:0:w9'] = {b:99, d:'x'};

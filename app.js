@@ -87,7 +87,18 @@ const speakBtn = (text, lang) => el('button', {type:'button', className:'speak',
 // ---------- Aralıklı tekrar (Leitner kutuları) ----------
 // Önceki derslerin kelime (w) ve cümleleri (s) karta dönüşür. Bildim → kutu +1 (1/3/7/14/30 gün), Tekrar → yarın.
 const SRS_KEY = 'dil-atlasi-srs', INTERVALS = [1, 3, 7, 14, 30];
-const CARD_ID = /^(en|fr|it|de):\d{1,3}:[ws]\d{1,2}$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
+const CARD_ID = /^(en|fr|it|de):(\d{1,3}:[ws]\d{1,2}|n:[a-z0-9]{4,14})$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
+// Hata defteri: yapay zekânın ya da kendinin düzelttiği cümleler kullanıcı kartı olur (dil-atlasi-notlar).
+// Kullanıcı girdisidir: yalnızca textContent ile gösterilir, uzunluk sınırlıdır.
+const NOTES_KEY = 'dil-atlasi-notlar', NOTE_MAX = 200, NOTES_PER_DAY = 2;
+const cleanText = v => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, NOTE_MAX);
+function loadNotes() { try { const v = JSON.parse(store.get(NOTES_KEY)); if (v && v.v === 1 && v.items && typeof v.items === 'object') return v; } catch {} return {v:1, items:{}}; }
+function saveNotes(n) { store.set(NOTES_KEY, JSON.stringify(n)); }
+const notesToday = (lang = active) => Object.entries(loadNotes().items).filter(([id, n]) => id.startsWith(lang + ':') && n.d === localDate()).length;
+function addNote(target, tr) {
+  const t = cleanText(target), m = cleanText(tr); if (!t) return false;
+  const n = loadNotes(), id = `${active}:n:${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`; n.items[id] = {t, tr: m || '(kendi cümlen)', d: localDate()}; saveNotes(n); return true;
+}
 function loadSrs() {
   const raw = store.get(SRS_KEY);
   try { const v = JSON.parse(raw); if (v && v.v === 2 && v.cards && typeof v.cards === 'object') return v; } catch {}
@@ -102,6 +113,8 @@ function dueCards(lang = active, limit = 60) {
     const add = (kind, [target, tr, pron], i) => { const id = `${lang}:${li}:${kind}${i}`, c = cards[id]; if (!c || c.d <= today) out.push({id, target, tr, pron, box: c ? c.b : -1, due: c ? c.d : ''}); };
     all[li].w.forEach((x, i) => add('w', x, i)); all[li].p.forEach((x, i) => add('s', x, i));
   }
+  // Hata defteri kartları eklendikleri günün ertesinden itibaren gelir.
+  for (const [id, n] of Object.entries(loadNotes().items)) { if (!id.startsWith(lang + ':') || n.d >= today) continue; const c = cards[id]; if (!c || c.d <= today) out.push({id, target:n.t, tr:n.tr, box: c ? c.b : -1, due: c ? c.d : ''}); }
   return out.sort((a, b) => a.due.localeCompare(b.due)).slice(0, limit);
 }
 function gradeCard(id, box, ok) {
@@ -208,8 +221,34 @@ function lessonBody(lesson, voice, i) {
     el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.p)}), sentences,
     el('div', {className:'tip', textContent:`💡 ${lesson.n}`}),
     el('div', {className:'eyebrow mt', textContent:'3 · Cümle kur'}), sentenceBuilder(lesson.p, voice),
+    el('div', {className:'eyebrow mt', textContent:'4 · Kendini sına'}), el('p', {className:'small', textContent:'Birkaç dakika sonra, bakmadan hatırla: Türkçesini gör, hedef dilde söyle, sonra aç. Bilemediklerin sona eklenir. Hatırlamaya çalışmak, tekrar okumaktan daha kalıcıdır.'}),
+    selfQuiz([...lesson.w, ...lesson.p], voice),
     doneRow('lesson', i + 1)
   ];
+}
+// Aynı gün hatırlama testi (testing effect): bugünün öğeleri karışık sırada, bilinmeyenler sona döner. Kayıt tutmaz.
+function selfQuiz(items, voice) {
+  const box = el('div');
+  const start = () => {
+    let queue = items.map(x => x).sort(() => Math.random() - .5), right = 0;
+    const draw = () => {
+      if (!queue.length) { box.replaceChildren(el('p', {className:'result ok', role:'status', textContent:`Tamam! ${right} öğeyi hatırladın.`}), el('button', {type:'button', className:'btn secondary', textContent:'Yeniden', onclick: start})); return; }
+      const [t, tr, pron] = queue[0], card = el('div', {className:'flash'});
+      const reveal = el('button', {type:'button', className:'btn big', textContent:'Cevabı göster'});
+      card.append(el('div', {className:'small muted', textContent:`Kalan ${queue.length}`}), el('div', {className:'q', textContent:tr}), reveal);
+      reveal.onclick = () => {
+        speak(t, voice);
+        const next = ok => { const it = queue.shift(); if (ok) right++; else queue.push(it); draw(); box.querySelector('.btn')?.focus(); };
+        reveal.replaceWith(el('div', {className:'a'}, el('span', {textContent:t}), speakBtn(t, voice)), pron ? el('div', {className:'pron', textContent:`okunuşu: ${pron}`}) : '',
+          el('div', {className:'actions'}, el('button', {type:'button', className:'btn secondary', textContent:'Bilemedim', onclick: () => next(false)}), el('button', {type:'button', className:'btn', textContent:'Bildim', onclick: () => next(true)})));
+        card.querySelector('.actions .btn:last-child').focus();
+      };
+      box.replaceChildren(card);
+    };
+    draw();
+  };
+  box.append(el('button', {type:'button', className:'btn secondary', textContent:`▶ Testi başlat (${items.length} öğe)`, onclick: start}));
+  return box;
 }
 // Cümle kurma: Türkçesini gör, karışık kelimeleri doğru sıraya diz.
 function sentenceBuilder(sentences, voice) {
@@ -230,9 +269,24 @@ function coachPrompt(lesson) {
   const l = languages[active];
   return `Sen sabırlı bir ${l.name} öğretmenisin. Ben Türküm ve ${l.acc} sıfırdan öğreniyorum (A0). Bugünkü konu: "${lesson.t}". ` +
     `Bugünkü kelimeler: ${lesson.w.map(w => w[0]).join(', ')}. Bugünkü cümleler: ${lesson.p.map(p => p[0]).join(' / ')}. ` +
-    `Kurallar: 1) Çok kısa ve yavaş ${l.name} cümleler kur, sadece bu kelimeleri ve çok basit ifadeleri kullan. 2) Her seferinde tek soru sor. ` +
-    `3) Hata yaparsam önce doğru cümleyi söyle, sonra tekrar etmemi iste; açıklamayı tek kısa Türkçe cümleyle yap. 4) Bu konuda 5 dakikalık basit bir rol oyunu yap. ` +
+    `Kurallar: 1) Bu konuya uygun gerçek hayattan bir senaryo seç (ör. kafede sipariş, otelde giriş, yeni biriyle tanışma) ve rolünü bir cümleyle Türkçe söyle. ` +
+    `2) Çok kısa ve yavaş ${l.name} cümleler kur; bu kelimeleri ve çok basit ifadeleri kullan. 3) Her seferinde tek soru sor. ` +
+    `4) Konuşurken beni düzeltme. 5–6 soruluk tur bitince yalnızca anlamı en çok etkileyen EN FAZLA 2 hatamı göster: benim cümlem → doğal cümle, tek kısa Türkçe açıklama. ` +
+    `5) Sonra düzeltilmiş cümleleri üç kez söylememi iste ve aynı senaryoyu bir kez daha, biraz farklı yap. ` +
     `${l.name} bir selamla başla.`;
+}
+function noteForm() {
+  const box = el('div'), left = NOTES_PER_DAY - notesToday();
+  const target = el('input', {type:'text', maxLength:NOTE_MAX, placeholder:`Doğru cümle (${languages[active].name})`, ariaLabel:'Doğru cümle'});
+  const tr = el('input', {type:'text', maxLength:NOTE_MAX, placeholder:'Türkçesi (isteğe bağlı)', ariaLabel:'Türkçesi'});
+  const msg = el('p', {className:'small', role:'status'});
+  const add = el('button', {type:'button', className:'btn secondary', textContent:'Kartlara ekle', disabled: left <= 0, onclick: () => {
+    if (!addNote(target.value, tr.value)) { msg.textContent = 'Önce doğru cümleyi yaz.'; return; }
+    target.value = ''; tr.value = ''; box.replaceWith(noteForm());
+  }});
+  box.append(el('p', {className:'small', textContent:`Sohbette düzeltilen en önemli cümleyi buraya yaz; yarından itibaren tekrar kartı olarak gelir. Günde en fazla ${NOTES_PER_DAY} (bugün kalan: ${Math.max(0, left)}). Çok hata eklemek tekrar yükünü artırır.`}),
+    el('div', {className:'note-form'}, target, tr, add), msg);
+  return box;
 }
 function speakBody(lesson, voice, i) {
   const prompt = coachPrompt(lesson), q = encodeURIComponent(prompt), status = el('span', {className:'small muted', role:'status'});
@@ -251,6 +305,8 @@ function speakBody(lesson, voice, i) {
       el('button', {type:'button', className:'btn secondary', textContent:'Mesajı kopyala', onclick: async () => { try { await navigator.clipboard.writeText(prompt); status.textContent = 'Kopyalandı — ChatGPT veya Claude uygulamasına yapıştır.'; } catch { status.textContent = 'Kopyalanamadı.'; } }})),
     el('p', {className:'small', textContent:'Köpek gezdirirken: ChatGPT uygulamasında Ayarlar → Voice → "Background conversations" açıksa telefon kilitliyken de sohbet sürer. Claude\'un ses modu da eller serbest dinler.'}),
     status,
+    el('div', {className:'eyebrow mt', textContent:'3 · Hata defteri'}),
+    noteForm(),
     doneRow('speak', -1)
   ];
 }
@@ -373,7 +429,7 @@ function setDataStatus(text, isError = false) { const e = $('#dataStatus'); e.te
 $('#exportData').onclick = () => {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (TASK_KEY.test(k) && store.get(k) === '1') data[k] = '1'; }
-  const srs = loadSrs().cards, backup = {app:'dil-atlasi', schemaVersion:1, exportedAt:new Date().toISOString(), settings:{active, timer:duration}, tasks:data, srs, srsVersion:2};
+  const srs = loadSrs().cards, backup = {app:'dil-atlasi', schemaVersion:1, exportedAt:new Date().toISOString(), settings:{active, timer:duration}, tasks:data, srs, srsVersion:2, notes:loadNotes().items};
   const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'}));
   const a = el('a', {href:url, download:`dil-atlasi-yedek-${localDate()}.json`}); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   setDataStatus(`${Object.keys(data).length} görev kaydı ve ${Object.keys(srs).length} tekrar kartı indirildi.`);
@@ -394,6 +450,11 @@ $('#importFile').onchange = async e => {
       for (const [id, c] of Object.entries(backup.srs)) { if (!CARD_ID.test(id) || !c || !Number.isInteger(c.b) || c.b < 0 || c.b >= INTERVALS.length || !DATE.test(c.d)) continue; if (!s.cards[id] || c.b > s.cards[id].b) s.cards[id] = {b:c.b, d:c.d}; }
       saveSrs(s);
     }
+    if (backup.notes && typeof backup.notes === 'object') {
+      const n = loadNotes();
+      for (const [id, x] of Object.entries(backup.notes)) { if (!/^(en|fr|it|de):n:[a-z0-9]{4,14}$/.test(id) || !x || !DATE.test(x.d) || !cleanText(x.t)) continue; if (!n.items[id]) n.items[id] = {t:cleanText(x.t), tr:cleanText(x.tr), d:x.d}; }
+      saveNotes(n);
+    }
     const st = backup.settings || {};
     if (languages[st.active]) { active = st.active; store.set('dil-atlasi-active', active); }
     if (durations.includes(st.timer) && !timerId) { duration = st.timer; store.set('dil-atlasi-timer', String(duration)); resetTimer(); }
@@ -409,6 +470,7 @@ $('#resetLang').onclick = () => {
   const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (prefix.test(k)) keys.push(k); }
   keys.forEach(store.del);
   const s = loadSrs(); Object.keys(s.cards).forEach(id => { if (id.startsWith(active + ':')) delete s.cards[id]; }); saveSrs(s);
+  const n = loadNotes(); Object.keys(n.items).forEach(id => { if (id.startsWith(active + ':')) delete n.items[id]; }); saveNotes(n);
   openStep = null; render(); switchTab('bugun');
 };
 

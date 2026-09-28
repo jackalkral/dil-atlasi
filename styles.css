@@ -138,3 +138,4 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .field select{width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit}
 .options.left{justify-content:flex-start}.mt-s{margin-top:12px}
 .howto-voice{margin-top:12px}.howto-voice summary{cursor:pointer;color:var(--lang);font-weight:700;font-size:.9rem}
+.note-form{display:grid;gap:8px}.note-form input{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font:inherit}
