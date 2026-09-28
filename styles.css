@@ -29,7 +29,7 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .card{background:linear-gradient(160deg,rgba(19,34,56,.96),rgba(12,24,40,.96));border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
 .card h2{margin:2px 0 6px;font-size:1.12rem}.card p{color:var(--muted);margin:6px 0}
 .muted{color:var(--muted)}.small{font-size:.84rem}.mt{margin-top:18px}
-.lesson-title{margin:2px 0 0;font-size:1.45rem;line-height:1.2}.howto{margin:6px 0 0;padding-left:1.2em}.player-controls .stop{max-width:34%}
+.lesson-title{margin:2px 0 0;font-size:1.45rem;line-height:1.2}.howto{margin:6px 0 0;padding-left:1.2em}
 .say-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
 
 /* Günün başlığı ve ilerleme çubuğu */
@@ -158,3 +158,12 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .stats-table tr.current th,.stats-table tr.current td{color:var(--lang);font-weight:800}
 .stats-table tfoot th,.stats-table tfoot td{font-weight:800;border-bottom:0}
 .rec{display:grid;gap:8px;margin-top:10px}.rec audio{width:100%}.rec-player{display:grid;gap:8px}.rec-player:empty{display:none}
+.player .now .mean{color:var(--muted);font-size:.95rem}
+.pron-item{grid-template-columns:1fr auto}
+.pron-tools{grid-column:1 / -1;display:grid;gap:8px}.pron-tools .row .btn{padding:8px 12px;font-size:.88rem}
+.check:empty{display:none}.check{font-size:.88rem}.check .result{margin:0}
+.check-words{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.check-words span{display:inline-block!important;padding:3px 8px;border-radius:8px;font-weight:800;font-size:.9rem!important}
+.word-ok{color:var(--accent)!important;background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.word-miss{color:var(--danger)!important;background:color-mix(in srgb,var(--danger) 14%,transparent);text-decoration:underline wavy}
+.pron-tools .rec{margin-top:0}.rec [role=status]:empty{display:none}.pron-tools .rec:not(:has(audio)):has([role=status]:empty){display:none}

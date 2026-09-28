@@ -144,9 +144,25 @@ function utter(text, lang, rate) {
   u.lang = v?.lang || lang; if (v) u.voice = v; u.rate = rate * rateFactor();
   return u;
 }
+// Tek ses kaynağı: yeni bir seslendirme, "Hepsini dinle" zincirini, ses çalışmasını ve çalan kaydı durdurur.
+// Safari cancel() sonrasında da onend gönderir; zincirler bu yüzden audioRun belirtecini denetler, yoksa kendi kendine sürer.
+let audioRun = 0;
+function stopAudio() {
+  audioRun++;
+  if (drill.playing) stopDrill();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  document.querySelectorAll('audio').forEach(a => { a.onended = null; a.pause(); });
+}
 function speak(text, lang = languages[active].voice, rate = .85) {
   if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel(); speechSynthesis.speak(utter(text, lang, rate));
+  stopAudio(); speechSynthesis.speak(utter(text, lang, rate));
+}
+// Listeyi sırayla okur; başka bir ses başlatılınca ya da sekme değişince durur.
+function playAll(list, lang, rate = .8) {
+  if (!('speechSynthesis' in window)) return;
+  stopAudio(); const run = audioRun; let k = 0;
+  const next = () => { if (run !== audioRun || k >= list.length) return; const u = utter(list[k++][0], lang, rate); u.onend = () => setTimeout(next, 700); speechSynthesis.speak(u); };
+  next();
 }
 const speakBtn = (text, lang) => el('button', {type:'button', className:'speak', textContent:'▶', ariaLabel:`Seslendir: ${text}`, onclick: () => speak(text, lang)});
 
@@ -236,6 +252,7 @@ function renderLangs() {
 }
 function switchLang(id) { stopDrill(); active = id; store.set('dil-atlasi-active', id); openStep = null; render(); }
 function switchTab(id) {
+  if (id !== tab) stopAudio();
   tab = id; store.set('dil-atlasi-tab', id);
   TABS.forEach(t => { const on = t === id; $(`#tab-${t}`).setAttribute('aria-selected', on); $(`#tab-${t}`).tabIndex = on ? 0 : -1; $(`#panel-${t}`).hidden = !on; });
   window.scrollTo({top: 0});
@@ -250,7 +267,7 @@ const STEPS = [
   {task:'review', title:'Tekrar', sub:'Önceki derslerin kartları', min:5},
   {task:'lesson', title:'Kelimeler ve cümleler', sub:'8 kelime, 5 cümle, cümle kurma', min:10},
   {task:'shadow', title:'Dinle ve tekrar et', sub:'Yürürken ya da yolda', min:10},
-  {task:'speak', title:'Konuş', sub:'Sesli söyle, yapay zekâyla pratik', min:5}
+  {task:'speak', title:'Konuş', sub:'Telaffuz testi, sesli söyle, yapay zekâyla pratik', min:5}
 ];
 function renderToday() {
   const l = languages[active], lesson = todayLesson(), day = getLessonDay(), due = dueCards();
@@ -297,7 +314,7 @@ function stepBody(s, lesson, due, i) {
   if (s.task === 'shadow') {
     const first = (window.MEDIA?.[active]?.audio || [])[0];
     return [
-      el('p', {className:'small', textContent:'Ses çalışması bugünün kelime ve cümlelerini sırayla okur: önce Türkçesi, sonra kısa bir ara (sen söyle), sonra doğrusu. Bittiğinde bu adım kendiliğinden işaretlenir.'}),
+      el('p', {className:'small', textContent:'Ses çalışması bugünün kelime ve cümlelerini sırayla okur: her birini duyarsın, arada yüksek sesle tekrar edersin, sonra bir kez daha dinlersin. Türkçe anlamı ekranda yazar, seslendirilmez. Bittiğinde bu adım kendiliğinden işaretlenir.'}),
       el('div', {className:'step-actions'}, el('button', {type:'button', className:'btn', textContent:'🎧 Ses çalışmasını başlat', onclick: () => { switchTab('yuru'); startDrill(); }})),
       first ? el('div', {}, el('p', {className:'small', textContent:'Uzun yürüyüşte ekstra (podcast uygulamanda, ekran kilitliyken de çalışır):'}), el('div', {className:'res'}, resLink(first))) : '',
       doneRow('shadow', i + 1)
@@ -333,12 +350,11 @@ function freqSection(voice) {
 function lessonBody(lesson, voice, i) {
   const words = el('div', {className:'items'}, ...lesson.w.map(([t, tr, pron], wi) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent: emojiFor(getLessonDay() - 1, wi) ? `${emojiFor(getLessonDay() - 1, wi)} ${t}` : t}), pron ? el('span', {className:'pron', textContent:`[${pron}]`}) : '', el('span', {textContent:tr})), speakBtn(t, voice))));
   const sentences = el('div', {className:'items'}, ...lesson.p.map(([t, tr]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), el('span', {textContent:tr})), speakBtn(t, voice))));
-  const playAll = list => { let k = 0; const next = () => { if (k >= list.length) return; const u = utter(list[k++][0], voice, .8); u.onend = () => setTimeout(next, 700); speechSynthesis.speak(u); }; speechSynthesis.cancel(); next(); };
   return [
     el('div', {className:'eyebrow', textContent:'1 · Kelimeler'}), el('p', {className:'small', textContent:'Her kelimeyi dinle ve iki kez yüksek sesle söyle. Köşeli parantez Türkçe okunuştur; BÜYÜK hece vurguludur' + (active === 'fr' ? ', ñ: n\'yi söyleme, sesi burundan ver.' : '.')}),
-    el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.w)}), words,
+    el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.w, voice)}), words,
     el('div', {className:'eyebrow mt', textContent:'2 · Cümleler'}), el('p', {className:'small', textContent:'Aynı kelimeler cümle içinde. Dinle, sonra ekrana bakmadan söylemeyi dene.'}),
-    el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.p)}), sentences,
+    el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.p, voice)}), sentences,
     el('div', {className:'tip', textContent:`💡 ${lesson.n}`}),
     el('div', {className:'eyebrow mt', textContent:'3 · Cümle kur'}), sentenceBuilder(lesson.p, voice),
     el('div', {className:'eyebrow mt', textContent:'4 · Kendini sına'}), el('p', {className:'small', textContent:'Birkaç dakika sonra, bakmadan hatırla: Türkçesini gör, hedef dilde söyle, sonra aç. Bilemediklerin sona eklenir. Hatırlamaya çalışmak, tekrar okumaktan daha kalıcıdır.'}),
@@ -426,13 +442,18 @@ function noteForm() {
 function speakBody(lesson, voice, i) {
   const prompt = coachPrompt(lesson), q = encodeURIComponent(prompt), status = el('span', {className:'small muted', role:'status'});
   const say = el('div', {className:'items'}, ...lesson.p.map(([t, tr]) => {
-    const d = el('details', {className:'item'}); d.append(el('summary', {textContent:tr}), el('div', {className:'say-row'}, el('strong', {textContent:t}), speakBtn(t, voice)), canRecord() ? recorder(t, voice) : '');
+    const d = el('details', {className:'item'}); d.append(el('summary', {textContent:tr}), el('div', {className:'say-row'}, el('strong', {textContent:t}), speakBtn(t, voice)));
     return d;
   }));
+  const li = getLessonDay() - 1, testItems = [...lesson.w.map(([t, tr, pron], wi) => [t, emojiFor(li, wi) ? `${emojiFor(li, wi)} ${tr}` : tr, pron]), ...lesson.p];
+  const tools = [canRecord() ? '🎙 Kaydet: kendi sesini dinleyip doğrusuyla karşılaştırırsın; kayıt yalnızca bu cihazda, geçici olarak durur, saklanmaz ve gönderilmez.' : '', canCheck() ? '✓ Kontrol et: söylediğini tarayıcının konuşma tanıma hizmeti yazıya çevirir ve hangi kelimelerin anlaşıldığını gösterir (ilk kullanımda onay ister).' : ''].filter(Boolean);
   return [
-    el('div', {className:'eyebrow', textContent:'1 · Kendi kendine'}),
-    el('p', {className:'small', textContent:'Türkçesini oku, cümleyi yüksek sesle söyle, sonra dokunup kontrol et.' + (canRecord() ? ' 🎙 ile kendini kaydedip doğrusuyla karşılaştırabilirsin: mikrofon yalnızca dokununca açılır, kayıt bu cihazda geçici olarak durur, saklanmaz ve hiçbir yere gönderilmez.' : '')}), say,
-    el('div', {className:'eyebrow mt', textContent:'2 · Yapay zekâyla sesli sohbet (isteğe bağlı)'}),
+    el('div', {className:'eyebrow', textContent:'1 · Telaffuz testi'}),
+    el('p', {className:'small', textContent:`Bugünün kelime ve cümlelerini ▶ ile dinle, sonra kendin söyle. ${tools.join(' ') || 'Bu tarayıcı mikrofonu desteklemiyor; dinleyip yüksek sesle tekrar et.'}`}),
+    el('div', {className:'items'}, ...testItems.map(([t, tr, pron]) => pronRow(t, tr, pron, voice))),
+    el('div', {className:'eyebrow mt', textContent:'2 · Kendi kendine'}),
+    el('p', {className:'small', textContent:'Türkçe anlamı oku, cümleyi hedef dilde yüksek sesle söyle, sonra dokunup doğrusunu gör.'}), say,
+    el('div', {className:'eyebrow mt', textContent:'3 · Yapay zekâyla sesli sohbet (isteğe bağlı)'}),
     el('p', {className:'small', textContent:'"ChatGPT\'de aç" bugünkü dersle hazırlanmış mesajı ChatGPT\'ye gönderir ve öğretmen gibi yazmaya başlar. Konuşarak devam etmek için sağ alttaki ses dalgası simgesine dokun. "Claude\'da aç" mesajı kopyalar ve Claude\'u açar; mesajı yapıştırıp gönder, sonra ses simgesine dokun. Mesajda kişisel bilgin yok; yalnızca bugünkü ders gider. Hesap gerekir.'}),
     el('div', {className:'step-actions'},
       el('a', {className:'btn link-btn', href:`https://chatgpt.com/?q=${q}`, target:'_blank', rel:'noopener noreferrer', textContent:'ChatGPT\'de aç'}),
@@ -440,7 +461,7 @@ function speakBody(lesson, voice, i) {
       el('button', {type:'button', className:'btn secondary', textContent:'Mesajı kopyala', onclick: async () => { try { await navigator.clipboard.writeText(prompt); status.textContent = 'Kopyalandı — ChatGPT veya Claude uygulamasına yapıştır.'; } catch { status.textContent = 'Kopyalanamadı.'; } }})),
     el('p', {className:'small', textContent:'Köpek gezdirirken: ChatGPT uygulamasında Ayarlar → Voice → "Background conversations" açıksa telefon kilitliyken de sohbet sürer. Claude\'un ses modu da eller serbest dinler.'}),
     status,
-    el('div', {className:'eyebrow mt', textContent:'3 · Hata defteri'}),
+    el('div', {className:'eyebrow mt', textContent:'4 · Hata defteri'}),
     noteForm(),
     doneRow('speak', -1)
   ];
@@ -453,36 +474,93 @@ const REC_MAX_MS = 10000;
 const canRecord = () => !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
 let lastRec = null; // {url, player}
 function recorder(text, voice) {
-  const btn = el('button', {type:'button', className:'btn secondary', textContent:'🎙 Kendini kaydet'});
+  const btn = el('button', {type:'button', className:'btn secondary', textContent:'🎙 Kaydet'});
   const status = el('span', {className:'small muted', role:'status'}), player = el('div', {className:'rec-player'});
   let rec = null, stream = null, timer = null;
   const release = () => { clearTimeout(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; };
   btn.onclick = async () => {
     if (rec?.state === 'recording') { rec.stop(); return; }
+    stopAudio();
     try { stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
     catch (e) { status.textContent = e?.name === 'NotAllowedError' ? 'Mikrofon izni verilmedi. İstersen tarayıcı ayarlarından izin verebilirsin.' : 'Mikrofon açılamadı.'; return; }
     const chunks = [];
     try { rec = new MediaRecorder(stream); } catch { release(); status.textContent = 'Bu tarayıcı ses kaydını desteklemiyor.'; return; }
     rec.ondataavailable = e => { if (e.data?.size) chunks.push(e.data); };
     rec.onstop = () => {
-      release(); btn.textContent = '🎙 Yeniden kaydet';
+      release(); btn.textContent = '🎙 Yeniden';
       if (lastRec) { URL.revokeObjectURL(lastRec.url); lastRec.player.replaceChildren(); }
       const url = URL.createObjectURL(new Blob(chunks, {type: rec.mimeType || 'audio/webm'})); lastRec = {url, player};
       const audio = el('audio', {controls:true, preload:'auto', src:url, ariaLabel:'Senin kaydın'});
-      const both = () => { window.speechSynthesis?.cancel(); audio.currentTime = 0; audio.onended = () => { audio.onended = null; speak(text, voice); }; audio.play().catch(() => {}); };
+      const both = () => { stopAudio(); audio.currentTime = 0; audio.onended = () => { audio.onended = null; speak(text, voice); }; audio.play().catch(() => {}); };
       player.replaceChildren(audio, el('div', {className:'row'},
         el('button', {type:'button', className:'btn secondary', textContent:'▶ Ben, sonra doğrusu', onclick: both}),
         el('button', {type:'button', className:'btn secondary', textContent:'▶ Doğrusu', onclick: () => speak(text, voice)})));
       status.textContent = 'Kaydını dinle ve doğrusuyla karşılaştır. Farklı duyduğun heceyi tekrar söyle.';
     };
-    rec.start(); btn.textContent = '■ Kaydı bitir'; status.textContent = `Kaydediliyor… cümleyi söyle (en fazla ${REC_MAX_MS / 1000} sn).`;
+    rec.start(); btn.textContent = '■ Bitir'; status.textContent = `Kaydediliyor… cümleyi söyle (en fazla ${REC_MAX_MS / 1000} sn).`;
     timer = setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, REC_MAX_MS);
   };
-  return el('div', {className:'rec'}, btn, status, player);
+  return {btn, panel: el('div', {className:'rec'}, status, player)};
+}
+
+// ---------- Telaffuz kontrolü (konuşma tanıma) ----------
+// Tarayıcının konuşma tanıma hizmeti sesi yazıya çevirir (iPhone'da Apple, Chrome'da Google sunucuları olabilir).
+// Bu, sesin cihaz dışına çıkması demektir; bu yüzden ilk kullanımda açık onay istenir (dil-atlasi-tanima = '1'), İlerleme'den geri alınabilir.
+// Hedef cümledeki kelimeler, anlaşılan metinle sıra korunarak (en uzun ortak alt dizi) eşleştirilir; aksan ve noktalama göz ardı edilir.
+const ASR_KEY = 'dil-atlasi-tanima';
+const SpeechRec = () => window.SpeechRecognition || window.webkitSpeechRecognition;
+const canCheck = () => !!SpeechRec();
+const wordKey = w => w.toLocaleLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\p{L}\p{N}]/gu, '');
+const splitWords = s => String(s).replace(/[’']/g, "' ").split(/\s+/).filter(w => wordKey(w));
+function matchWords(target, heard) {
+  const tw = splitWords(target), a = tw.map(wordKey), b = splitWords(heard).map(wordKey);
+  const L = Array.from({length:a.length + 1}, () => new Array(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) for (let j = b.length - 1; j >= 0; j--) L[i][j] = a[i] === b[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const ok = new Array(a.length).fill(false);
+  for (let i = 0, j = 0; i < a.length && j < b.length;) { if (a[i] === b[j]) { ok[i] = true; i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++; }
+  return {words: tw.map((w, i) => ({w, ok: ok[i]})), score: a.length ? ok.filter(Boolean).length / a.length : 0};
+}
+function checker(text, voice) {
+  const btn = el('button', {type:'button', className:'btn secondary', textContent:'✓ Kontrol et'}), panel = el('div', {className:'check', role:'status'});
+  let rec = null;
+  const ask = () => panel.replaceChildren(
+    el('p', {className:'small', textContent:'Otomatik kontrol, söylediğini yazıya çevirmek için sesini tarayıcının konuşma tanıma hizmetine gönderir (iPhone\'da Apple, Chrome\'da Google). Uygulama sesini saklamaz. Onaylıyor musun?'}),
+    el('div', {className:'row'}, el('button', {type:'button', className:'btn', textContent:'Onayla ve dene', onclick: () => { store.set(ASR_KEY, '1'); renderVoiceSettings(); listen(); }}),
+      el('button', {type:'button', className:'btn secondary', textContent:'Vazgeç', onclick: () => panel.replaceChildren()})));
+  const listen = () => {
+    stopAudio();
+    try { rec = new (SpeechRec())(); } catch { panel.textContent = 'Bu tarayıcı konuşma tanımayı desteklemiyor.'; return; }
+    rec.lang = voice; rec.interimResults = false; rec.maxAlternatives = 5; rec.continuous = false;
+    let done = false;
+    rec.onresult = e => {
+      done = true; const alts = [...(e.results[0] || [])].map(x => x.transcript);
+      const best = alts.map(h => ({h, ...matchWords(text, h)})).sort((x, y) => y.score - x.score)[0] || {h:'', ...matchWords(text, '')};
+      const pct = Math.round(best.score * 100), missed = best.words.filter(x => !x.ok).map(x => x.w);
+      const words = el('div', {className:'check-words'}, ...best.words.map(x => el('span', {className: x.ok ? 'word-ok' : 'word-miss', textContent:x.w})));
+      words.setAttribute('aria-label', missed.length ? `Anlaşılmayan kelimeler: ${missed.join(', ')}` : 'Bütün kelimeler anlaşıldı');
+      panel.replaceChildren(el('p', {className:`result ${pct >= 80 ? 'ok' : 'no'}`, textContent:`%${pct} · ${pct === 100 ? 'Mükemmel!' : pct >= 80 ? 'Çok iyi.' : pct >= 50 ? 'Fena değil; kırmızı kelimeleri dinleyip tekrar dene.' : 'Anlaşılmadı; ▶ ile dinle, yavaş ve net söyle.'}`}),
+        words, el('p', {className:'small muted', textContent:`Anlaşılan: „${best.h || '—'}”`}));
+    };
+    rec.onerror = e => { done = true; panel.textContent = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. Düğmeye bas ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'}[e.error] || 'Kontrol yapılamadı, tekrar dene.'; };
+    rec.onend = () => { btn.textContent = '✓ Kontrol et'; if (!done) panel.textContent = 'Ses duyulmadı. Düğmeye bas ve hemen söyle.'; rec = null; };
+    try { rec.start(); } catch { panel.textContent = 'Kontrol başlatılamadı, tekrar dene.'; return; }
+    btn.textContent = '■ Dinliyor…'; panel.textContent = 'Dinliyorum… şimdi söyle.';
+  };
+  btn.onclick = () => { if (rec) { rec.stop(); return; } store.get(ASR_KEY) === '1' ? listen() : ask(); };
+  return {btn, panel};
+}
+// Telaffuz testi satırı: hedef metin, okunuş ve Türkçe anlam yazılı; ▶ dinle, 🎙 kaydet, ✓ kontrol et.
+function pronRow(t, tr, pron, voice) {
+  const r = canRecord() ? recorder(t, voice) : null, c = canCheck() ? checker(t, voice) : null;
+  return el('div', {className:'item pron-item'},
+    el('div', {}, el('strong', {textContent:t}), pron ? el('span', {className:'pron', textContent:`[${pron}]`}) : '', el('span', {textContent:tr})),
+    speakBtn(t, voice),
+    r || c ? el('div', {className:'pron-tools'}, el('div', {className:'row'}, r?.btn || '', c?.btn || ''), r?.panel || '', c?.panel || '') : '');
 }
 
 // ---------- Dinle: eller serbest ses çalışması ----------
-// Sıra: Türkçe → ara (sen söyle) → hedef dil → kısa ara → hedef dil tekrar. Sonra günün tekrar kartları.
+// Sıra: hedef dil → ara (sen tekrar et) → hedef dil tekrar. Türkçe anlam yalnızca ekranda yazar, seslendirilmez.
+// Kapsam: bugünün kelime ve cümleleri, sık kelimeler, sonra günün tekrar kartlarından 10'u.
 let drill = {run:0, playing:false}, wakeLock = null;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 function sayAsync(text, lang, rate, run) {
@@ -502,23 +580,22 @@ async function startDrill() {
   if (!('speechSynthesis' in window)) { $('#drillL1').textContent = 'Bu tarayıcı seslendirmeyi desteklemiyor.'; return; }
   if (drill.playing) return stopDrill();
   const run = ++drill.run, voice = languages[active].voice, items = drillItems(), gap = () => +(document.querySelector('input[name=gap]:checked')?.value || 3.5) * 1000;
-  drill.playing = true; $('#drillPlay').textContent = '⏸ Durdur'; speechSynthesis.cancel();
+  stopAudio(); drill.playing = true; $('#drillPlay').textContent = '■ Durdur';
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
   for (let k = 0; k < items.length && drill.run === run; k++) {
     const it = items[k];
-    $('#drillLabel').textContent = `${k + 1}/${items.length}`; $('#drillL1').textContent = it.tr; $('#drillL2').textContent = '…';
-    await sayAsync(it.tr.replace(/^\S+\s(?=\p{L})/u, m => /\p{L}/u.test(m) ? m : ''), 'tr-TR', 1, run); await sleep(gap());
-    if (drill.run !== run) break;
-    $('#drillL2').textContent = it.t; $('#drillPron').textContent = it.pron ? `[${it.pron}]` : '';
-    await sayAsync(it.t, voice, .8, run); await sleep(900);
-    await sayAsync(it.t, voice, .8, run); await sleep(1200);
+    $('#drillLabel').textContent = `${k + 1}/${items.length}`; $('#drillL1').textContent = 'Dinle…';
+    $('#drillL2').textContent = it.t; $('#drillPron').textContent = it.pron ? `[${it.pron}]` : ''; $('#drillTr').textContent = it.tr;
+    await sayAsync(it.t, voice, .8, run); if (drill.run !== run) break;
+    $('#drillL1').textContent = 'Şimdi sen söyle…'; await sleep(gap()); if (drill.run !== run) break;
+    $('#drillL1').textContent = 'Tekrar dinle'; await sayAsync(it.t, voice, .8, run); await sleep(1200);
   }
-  if (drill.run === run) { $('#drillL1').textContent = 'Bitti! Aferin.'; $('#drillL2').textContent = ''; $('#drillLabel').textContent = 'Bugünün ses çalışması'; store.set(key('shadow'), '1'); render(); }
+  if (drill.run === run) { $('#drillL1').textContent = 'Bitti! Aferin.'; $('#drillL2').textContent = ''; $('#drillPron').textContent = ''; $('#drillTr').textContent = ''; $('#drillLabel').textContent = 'Bugünün ses çalışması'; store.set(key('shadow'), '1'); render(); }
   drill.playing = false; $('#drillPlay').textContent = '▶ Başlat'; wakeLock?.release?.().catch(() => {}); wakeLock = null;
 }
 function stopDrill() { drill.run++; drill.playing = false; if ('speechSynthesis' in window) speechSynthesis.cancel(); $('#drillPlay').textContent = '▶ Başlat'; wakeLock?.release?.().catch(() => {}); wakeLock = null; }
-$('#drillPlay').onclick = startDrill;
-$('#drillStop').onclick = () => { stopDrill(); $('#drillL1').textContent = 'Durduruldu.'; $('#drillL2').textContent = ''; };
+// Tek düğme: çalarken Durdur, dururken Başlat.
+$('#drillPlay').onclick = () => { if (!drill.playing) return startDrill(); stopDrill(); $('#drillL1').textContent = 'Durduruldu.'; $('#drillL2').textContent = ''; $('#drillPron').textContent = ''; $('#drillTr').textContent = ''; };
 document.addEventListener('visibilitychange', async () => { if (drill.playing && document.visibilityState === 'visible' && !wakeLock) { try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {} } });
 
 // ---------- Kaynak listeleri (yalnızca bağlantı) ----------
@@ -587,20 +664,21 @@ function renderStats() {
 }
 
 function renderVoiceSettings() {
-  const l = languages[active], sel = $('#voiceSelect'), trSel = $('#trVoiceSelect');
+  const l = languages[active], sel = $('#voiceSelect');
   if (!sel) return;
   const fill = (select, lang) => {
     const list = voiceList(lang).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang)), pick = chosenVoices()[lang.slice(0, 2)];
     select.replaceChildren(el('option', {value:'', textContent:`Otomatik (en doğal: ${voiceFor(lang)?.name || 'cihaz sesi yok'})`}), ...list.map(v => el('option', {value:v.voiceURI, textContent:`${v.name} · ${v.lang}${voiceScore(v, lang) >= 6 ? ' ★' : ''}`, selected: v.voiceURI === pick})));
   };
-  $('#voiceLangLabel').textContent = `${l.name} sesi`; fill(sel, l.voice); fill(trSel, 'tr-TR');
+  $('#voiceLangLabel').textContent = `${l.name} sesi`; fill(sel, l.voice);
+  $('#asrCard').hidden = !canCheck(); $('#asrToggle').checked = store.get(ASR_KEY) === '1';
   document.querySelectorAll('input[name=rate]').forEach(i => { i.checked = +i.value === rateFactor(); });
   const good = voiceList(l.voice).some(v => voiceScore(v, l.voice) >= 6);
   $('#voiceHint').textContent = good ? 'Cihazında doğal (★) bir ses var ve otomatik seçildi.' : 'Cihazında bu dil için doğal bir ses bulunamadı. Aşağıdaki adımlarla ücretsiz indirebilirsin.';
 }
 const saveVoice = (lang, uri) => { const v = chosenVoices(); if (uri) v[lang] = uri; else delete v[lang]; store.set(VOICE_KEY, JSON.stringify(v)); renderVoiceSettings(); };
 $('#voiceSelect').onchange = e => { saveVoice(active, e.target.value); speak(todayLesson().p[0][0]); };
-$('#trVoiceSelect').onchange = e => { saveVoice('tr', e.target.value); speak('Merhaba, bugün birlikte çalışalım.', 'tr-TR', 1); };
+$('#asrToggle').onchange = e => { e.target.checked ? store.set(ASR_KEY, '1') : store.del(ASR_KEY); };
 $('#voiceTest').onclick = () => speak(todayLesson().p[0][0]);
 document.querySelectorAll('input[name=rate]').forEach(i => { i.onchange = () => { store.set(RATE_KEY, i.value); speak(todayLesson().p[0][0]); }; });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', renderVoiceSettings);
@@ -609,7 +687,7 @@ function render() {
   document.documentElement.style.setProperty('--lang', languages[active].color);
   renderLangs(); renderToday();
   renderRes('#audioRes', window.MEDIA?.[active]?.audio); renderRes('#videoRes', window.MEDIA?.[active]?.video);
-  if (!drill.playing) { $('#drillInfo').textContent = `Bugün: ${drillItems().length} ifade · yaklaşık ${Math.ceil(drillItems().length * 12 / 60)} dakika. Ekranın açık kalması gerekir.`; }
+  if (!drill.playing) { $('#drillInfo').textContent = `Bugün: ${drillItems().length} ifade · yaklaşık ${Math.ceil(drillItems().length * 9 / 60)} dakika. Ekranın açık kalması gerekir.`; }
   renderProgress(); renderPlan(); renderStats(); renderVoiceSettings(); renderFreqCard();
 }
 
@@ -630,7 +708,7 @@ $('#timerToggle').onclick = () => {
     deadline = Date.now() + seconds * 1000;
     timerId = setInterval(() => {
       seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); updateTimer();
-      if (seconds <= 0) { clearInterval(timerId); timerId = null; $('#timerToggle').textContent = 'Yeniden başlat'; updateTimer(); logAdd(active, 'm', duration); renderStats(); speak('Çalışma tamamlandı', 'tr-TR'); }
+      if (seconds <= 0) { clearInterval(timerId); timerId = null; $('#timerToggle').textContent = 'Yeniden başlat'; updateTimer(); logAdd(active, 'm', duration); renderStats(); navigator.vibrate?.([200, 100, 200]); $('#timerDisplay').textContent = 'Bitti ✓'; }
     }, 500);
     $('#timerToggle').textContent = 'Duraklat';
   }
