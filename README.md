@@ -5,7 +5,9 @@
 ## Neler var?
 
 - Dört dil için ayrı 12 haftalık yol haritası
-- Günlük dört çalışma bloğu ve ilerleme yüzdesi
+- İngilizce (A2 → B1, iş ve siber güvenlik) ve Fransızca (A0 → A1) için 30 günlük ders içeriği
+- Önceki derslerden aralıklı tekrar kartları (1, 3, 7 ve 14 ders önce)
+- Günlük 25 dakikalık dört çalışma bloğu ve ilerleme yüzdesi
 - Çalışma serisi ve 28 günlük geçmiş
 - 25/45/60 dakika seçilebilen odak sayacı
 - İlerlemeyi JSON dosyası olarak yedekleme ve geri yükleme
@@ -21,7 +23,8 @@
 
 ```text
 dil-atlasi-source/
-├── index.html              # Arayüz, içerik ve uygulama mantığı
+├── index.html              # Arayüz ve uygulama mantığı
+├── lessons.js              # 30 günlük ders içeriği (en, fr)
 ├── manifest.webmanifest    # PWA tanımı
 ├── sw.js                   # Çevrimdışı uygulama kabuğu
 ├── icons/                  # Uygulama simgeleri
@@ -67,6 +70,8 @@ Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 - Görevler: `da:{görev}:{dil}:{YYYY-MM-DD}`
 - Dil kodları: `en`, `fr`, `it`, `de`
 - Görev kodları: `review`, `lesson`, `shadow`, `speak`
+
+Ders günü ayrıca saklanmaz; o dilde bugünden önce en az bir görevin işaretlendiği gün sayısından hesaplanır. Bu yüzden bir gün atlamak dersi kaçırmaz, sadece ilerlemeyi bekletir.
 
 Sunucuya kişisel veri gönderilmez. Bunun karşılığı olarak veriler cihazlar arasında eşitlenmez ve tarayıcı verileri silinirse ilerleme kaybolur; bu yüzden düzenli yedek almak önerilir.
 

@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    {"name": "dil-atlasi", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "4173"], "port": 4173}
+    {"name": "dil-atlasi", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "4174", "--directory", "."], "port": 4174}
   ]
 }

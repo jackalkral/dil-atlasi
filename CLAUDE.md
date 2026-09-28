@@ -7,12 +7,19 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 ## Mevcut mimari
 
 - Bağımlılıksız HTML, CSS ve JavaScript
-- Tüm uygulama `index.html` içinde
+- Uygulama `index.html` içinde; ders içeriği `lessons.js` (`window.LESSONS`) dosyasında
 - PWA manifesti ve çevrimdışı uygulama kabuğu
 - İlerleme için yalnızca `localStorage`
 - Telaffuz için Web Speech API (`speechSynthesis`)
 - Haricî API, kullanıcı hesabı, analitik veya çerez izleme yok
 - Arayüz dili Türkçe
+
+## Öğrenme planı
+
+- Ana dil: İngilizce (A2 → B1, iş ve siber güvenlik odaklı). Yan dil: Fransızca (A0 → A1). İtalyanca ve Almanca sonra.
+- Günlük hedef 25–30 dakika; yan dilde 10–15 dakika.
+- Ders günü = o dilde bugünden önce çalışılan gün sayısı + 1 (`getLessonDay`); ayrı anahtar yoktur.
+- `lessons.js` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı.
 
 ## Korunması gereken davranışlar
 
@@ -28,11 +35,11 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 
 ### Sürüm 1.1
 
-- İlerleme verisini JSON olarak dışa/içe aktarma
-- Çalışma süresini 25/45/60 dakika seçebilme
-- Günlük ders içeriğini 30 güne çıkarma
+- ~~İlerleme verisini JSON olarak dışa/içe aktarma~~ (yapıldı)
+- ~~Çalışma süresini 25/45/60 dakika seçebilme~~ (yapıldı)
+- ~~Günlük ders içeriğini 30 güne çıkarma~~ (en ve fr için yapıldı; it ve de bekliyor)
 - Telaffuz kaydı için kullanıcı izniyle mikrofon desteği
-- Service Worker güncelleme bildirimi
+- ~~Service Worker güncelleme bildirimi~~ (yapıldı)
 
 ### Sürüm 1.2
 

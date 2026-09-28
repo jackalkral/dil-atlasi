@@ -15,6 +15,7 @@ Bu liste uygulamadaki bağlantıların ve öğrenme tasarımının dayanakların
 - British Council A1 dinleme: https://learnenglish.britishcouncil.org/free-resources/listening/a1
 - British Council A1 konuşma: https://learnenglish.britishcouncil.org/free-resources/speaking/a1
 - VOA Let's Learn English — Level 1: https://learningenglish.voanews.com/p/5644.html
+- BBC Learning English — 6 Minute English (A2–B1 dinleme): https://www.bbc.co.uk/learningenglish/english/features/6-minute-english
 
 ## Fransızca
 
