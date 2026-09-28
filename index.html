@@ -14,6 +14,7 @@
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
   <link rel="stylesheet" href="./styles.css">
+  <script src="./theme.js"></script>
 </head>
 <body>
   <header class="top">
@@ -114,6 +115,11 @@
         <fieldset class="duration" id="planGoal"><legend>Günlük hedef</legend><label><input type="radio" name="goal" value="2"><span>2 aşama</span></label><label><input type="radio" name="goal" value="3"><span>3 aşama</span></label><label><input type="radio" name="goal" value="4"><span>4 aşama</span></label></fieldset>
         <p class="small" id="planStatus"></p>
         <p class="small warn" id="planWarn"></p>
+      </div>
+      <div class="card">
+        <h2>Görünüm</h2>
+        <p class="small">Sistem: telefonun açık/koyu ayarını izler.</p>
+        <fieldset class="duration theme-opts" id="themeOpts"><legend>Tema</legend><label><input type="radio" name="theme" value=""><span>Sistem</span></label><label><input type="radio" name="theme" value="light"><span>Açık</span></label><label><input type="radio" name="theme" value="dark"><span>Koyu</span></label></fieldset>
       </div>
       <div class="card" id="freqCard">
         <h2>En sık 1000 kelime</h2>
