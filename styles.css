@@ -142,3 +142,19 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .item.freq .example{margin-top:4px;color:var(--text);font-style:italic}.item.freq .example-tr{font-size:.8rem}
 .freq-btns{display:grid;gap:6px}
 .switch{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:.9rem}.switch input{width:20px;height:20px;accent-color:var(--lang)}
+
+/* Plan, istatistik ve ses kaydı */
+.lang-chip.planned::after{content:"";width:6px;height:6px;border-radius:50%;background:var(--c)}
+.plan-hint{margin-bottom:0}
+.duration.days{flex-wrap:wrap}
+.duration + .duration{margin-top:10px}
+.warn{color:var(--warm)!important}
+.stats-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.84rem;font-variant-numeric:tabular-nums}
+.stats-table caption{text-align:left;font-size:.78rem;color:var(--muted);padding-bottom:4px}
+.stats-table th,.stats-table td{padding:7px 4px;text-align:right;border-bottom:1px solid var(--line)}
+.stats-table th:first-child{text-align:left}
+.stats-table thead th{color:var(--muted);font-weight:700;font-size:.74rem}
+.stats-table tbody th{font-weight:600}
+.stats-table tr.current th,.stats-table tr.current td{color:var(--lang);font-weight:800}
+.stats-table tfoot th,.stats-table tfoot td{font-weight:800;border-bottom:0}
+.rec{display:grid;gap:8px;margin-top:10px}.rec audio{width:100%}.rec-player{display:grid;gap:8px}.rec-player:empty{display:none}

@@ -41,6 +41,15 @@
     localStorage.setItem(`da:lesson:en:${day(-1)}`, '1'); await load(false);
     check(localStorage.getItem(`da:lesson:en:${day(-1)}`) === '1', 'Sıfırlama ikinci açılışta tekrar çalışmadı');
 
+    // 0b) Şema sürümü ve kontrollü geçiş: eski veri yedeklenir, sürüm 2 olur; daha yeni sürümün verisine dokunulmaz
+    localStorage.clear(); localStorage.setItem(`da:lesson:en:${day(-2)}`, '1'); localStorage.setItem('dil-atlasi-srs', JSON.stringify({v:2, cards:{}, stats:{en:{ok:'3', n:'4'}}}));
+    await load();
+    const mig = JSON.parse(localStorage.getItem('dil-atlasi-goc-yedegi') || '{}'), mst = JSON.parse(localStorage.getItem('dil-atlasi-srs')).stats.en;
+    check(localStorage.getItem('dil-atlasi-surum') === '2' && mig.from === 1 && mig.data?.[`da:lesson:en:${day(-2)}`] === '1', 'Geçiş: sürüm 2, eski kayıtlar geçiş yedeğinde');
+    check(mst.ok === 3 && mst.n === 4 && localStorage.getItem(`da:lesson:en:${day(-2)}`) === '1' && JSON.parse(localStorage.getItem('dil-atlasi-plan')).v === 1, 'Geçiş: veri korundu, yeni anahtarlar başlatıldı');
+    localStorage.clear(); localStorage.setItem('dil-atlasi-surum', '99'); await load();
+    check(localStorage.getItem('dil-atlasi-surum') === '99' && localStorage.getItem('dil-atlasi-plan') === null, 'Daha yeni sürümün verisine dokunulmadı');
+
     // 1) Temiz kurulum
     localStorage.clear();
     let w = await load(), $ = s => w.document.querySelector(s), $$ = s => [...w.document.querySelectorAll(s)];
@@ -67,6 +76,21 @@
     const idx = 0, target = w.LESSONS.fr[idx].p[0][0].split(/\s+/);
     for (const tok of target) { const c = $$('.step.open .build-pool .chip').find(x => x.textContent === tok); c && c.click(); }
     check($('.step.open .result').textContent.startsWith('Doğru'), 'Cümle kurma: doğru sıra kabul edildi');
+    // 3a) Cümle kurma sonu: başa sarmaz, doğru/yanlış özetini gösterir; Baştan ilk cümleye döner
+    const bx = () => $('.step.open .build-pool').parentElement, bbtn = t => [...bx().querySelectorAll('.step-actions .btn')].find(b => b.textContent.startsWith(t));
+    const solve = k => { for (const tok of w.LESSONS.fr[idx].p[k][0].split(/\s+/)) { const c = [...bx().querySelectorAll('.build-pool .chip')].find(x => x.textContent === tok); c && c.click(); } };
+    bbtn('Sıradaki').click(); check(bx().querySelector('p').textContent.startsWith('2/5'), 'Cümle kurma: ikinci cümle');
+    bbtn('Baştan').click(); check(bx().querySelector('p').textContent.startsWith('1/5'), 'Cümle kurma: Baştan ilk cümleye döndü');
+    solve(0); bbtn('Sıradaki').click();
+    [...bx().querySelectorAll('.build-pool .chip')].forEach(() => bx().querySelector('.build-pool .chip').click());
+    check(bx().querySelector('.result').classList.contains('no'), 'Cümle kurma: yanlış sıra reddedildi');
+    bbtn('Sıradaki').click(); bbtn('Sıradaki').click(); bbtn('Sıradaki').click(); solve(4);
+    check(!bbtn('Sıradaki') && !!bbtn('Bitir'), 'Son cümlede Sıradaki yerine Bitir');
+    bbtn('Bitir').click();
+    const sum = $('.step.open .build-target') ? '' : ($$('.step.open .result').find(r => /cümleden/.test(r.textContent))?.textContent || '');
+    check(/5 cümleden 2 doğru, 1 yanlış, 2 atlandı/.test(sum), 'Cümle kurma bitince özet gösterildi, başa sarmadı', sum);
+    [...w.document.querySelectorAll('.step.open .btn')].find(b => b.textContent === 'Baştan başla').click();
+    check(bx().querySelector('p').textContent.startsWith('1/5'), 'Özetten sonra Baştan başla ilk cümleye döndü');
     $$('.step.open .btn').find(b => b.textContent.startsWith('Tamamladım')).click();
     check(localStorage.getItem(`da:lesson:fr:${today}`) === '1', 'Kelimeler aşaması da:lesson anahtarına yazıldı');
     check($('.step.open .step-title').textContent === 'Dinle ve tekrar et', 'Sonraki aşama açıldı');
@@ -113,6 +137,21 @@
     check($$('.step.open .note-form .btn')[0].disabled, 'Günde 2 nottan sonra ekleme kapandı');
     check(!w.document.querySelector('img[src="x"]'), 'Not içeriği HTML olarak çalışmadı');
 
+    // 5a) Telaffuz kaydı: izin reddi anlaşılır mesaj verir; kayıt bitince mikrofon kapanır, kayıt yalnızca bellekte (blob)
+    let stopped = 0, deny = true;
+    w.navigator.mediaDevices.getUserMedia = async () => { if (deny) throw Object.assign(new Error('x'), {name:'NotAllowedError'}); return {getTracks: () => [{stop() { stopped++; }}]}; };
+    w.MediaRecorder = class { constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; } start() { this.state = 'recording'; } stop() { this.state = 'inactive'; this.ondataavailable({data:new w.Blob(['x'], {type:'audio/webm'})}); this.onstop(); } };
+    const say0 = $$('.step.open details.item')[0]; say0.open = true;
+    const recBtn = say0.querySelector('.rec .btn'); recBtn.click(); await wait(20);
+    check(/izni verilmedi/.test(say0.querySelector('.rec [role=status]').textContent), 'Mikrofon izni reddedilince açıklama gösterildi');
+    // Test ortamında zamanlayıcılar 5 ms'ye kısaltıldığı için kayıt süre sınırında kendiliğinden biter.
+    deny = false; recBtn.click(); await wait(40);
+    const aud = say0.querySelector('.rec audio');
+    check(stopped === 1 && aud && aud.src.startsWith('blob:') && recBtn.textContent.includes('Yeniden'), 'Kayıt süre sınırında bitti: mikrofon kapatıldı, kayıt dinlenebilir');
+    recBtn.click(); await wait(40);
+    check(stopped === 2 && say0.querySelectorAll('.rec audio').length === 1 && say0.querySelector('.rec audio').src !== aud.src, 'Yeni kayıt eskisinin yerini aldı');
+    check(!Object.keys(localStorage).some(k => /kayit|rec|audio/i.test(k)), 'Ses kaydı saklanmadı');
+
     // 5c) Aynı gün kendini sına
     const h2 = $$('.step-head'); if (h2[1].getAttribute('aria-expanded') !== 'true') h2[1].click();
     $$('.step.open .btn').find(b => b.textContent.startsWith('▶ Testi başlat')).click();
@@ -135,10 +174,28 @@
     let n = 0; while ($('#steps .flash') && n < 20) { $('#steps .flash .btn').click(); const b = $$('#steps .flash .actions .btn'); (n === 0 ? b[0] : b[1]).click(); n++; }
     const srs = JSON.parse(localStorage.getItem('dil-atlasi-srs'));
     check(n === 13 && srs.v === 2, '13 kart değerlendirildi, v2 biçimi', `n=${n}`);
+    const lg = JSON.parse(localStorage.getItem('dil-atlasi-gunluk')).d[today]?.en;
+    check(lg?.c === 13 && lg.ok === 12, 'Günlük istatistik: 13 kart, 12 bilinen', JSON.stringify(lg));
+    const cur = $('#statsBody tr.current');
+    check(cur && cur.querySelectorAll('td')[2].textContent === '13' && cur.querySelectorAll('td')[3].textContent === '%92', 'İlerleme: haftalık tabloda bugünkü kartlar', cur?.textContent);
+    check(/13 kart/.test($('#statsToday').textContent), 'İlerleme: bugünün özeti', $('#statsToday').textContent);
     check(srs.cards['en:0:w0'].d === day(1) && srs.cards['en:0:w1'].d === day(1), 'Bilinen ve bilinmeyen kart ertesi güne planlandı');
     check(localStorage.getItem(`da:review:en:${today}`) === '1', 'Kartlar bitince review kendiliğinden işaretlendi');
     const h3 = $$('.step-head'); if (h3[1].getAttribute('aria-expanded') !== 'true') h3[1].click();
     check($$('.step.open .item strong').some(e => e.textContent.startsWith('🇹🇷')), 'Somut kelimede emoji ipucu görünüyor (Ders 2: Türkiye)');
+
+    // 6-plan) Haftalık plan: bugünü seç, hedef 2 aşama; dil düğmesi ve Bugün ipucu güncellenir
+    const dow = String(new Date().getDay());
+    $(`#planDays input[value="${dow}"]`).click(); $('#planGoal input[value="2"]').click();
+    const pl = JSON.parse(localStorage.getItem('dil-atlasi-plan')).langs.en;
+    check(pl.days.length === 1 && pl.days[0] === +dow && pl.goal === 2, 'Plan kaydedildi', JSON.stringify(pl));
+    check($$('.lang-chip')[0].classList.contains('planned') && /bugün planda/.test($$('.lang-chip')[0].getAttribute('aria-label')), 'Dil düğmesinde bugün planda işareti');
+    check(/bugün İngilizce günü/.test($('#planHint').textContent) && /0\/1/.test($('#planHint').textContent), 'Bugün ipucu planı ve hedefi gösteriyor', $('#planHint').textContent);
+    $$('.lang-chip')[1].click();
+    check(/planında yok; planlı: İngilizce/.test($('#planHint').textContent), 'Planda olmayan dil için yumuşak hatırlatma', $('#planHint').textContent);
+    $(`#planDays input[value="${dow}"]`).click(); $$('.lang-chip')[2].click(); $(`#planDays input[value="${dow}"]`).click();
+    check($('#planWarn').textContent.includes('Fransızca ve İtalyanca aynı günlerde'), 'Fransızca-İtalyanca aynı gün uyarısı');
+    $$('.lang-chip')[0].click();
 
     // 6a) Dünkü sık kelime paketi bugün tekrar kartı olur
     localStorage.setItem('dil-atlasi-sik', JSON.stringify({en: {on: true, done: 1, last: day(-1)}}));
@@ -162,7 +219,8 @@
     // 7) Yedekleme: dışa aktar, bozuk dosyayı reddet, geri yükle
     let blob; const oc = w.URL.createObjectURL; w.URL.createObjectURL = b => { blob = b; return oc(b); }; w.HTMLAnchorElement.prototype.click = function () {};
     $('#exportData').click(); const backup = JSON.parse(await blob.text());
-    check(backup.schemaVersion === 1 && backup.srsVersion === 2 && Object.keys(backup.srs).length === 13, 'Yedek görevleri ve 13 kartı içeriyor');
+    check(backup.schemaVersion === 2 && backup.srsVersion === 2 && Object.keys(backup.srs).length === 13, 'Yedek görevleri ve 13 kartı içeriyor');
+    check(backup.srsStats?.en?.n === 1 && backup.plan?.en?.goal === 2 && backup.log?.[today]?.en?.c >= 13, 'Yedek hatırlama ölçüsü, plan ve günlük istatistiği içeriyor');
     check(backup.notes && typeof backup.notes === 'object', 'Yedek hata defterini içeriyor');
     const imp = async data => { const dt = new w.DataTransfer(); dt.items.add(new w.File([typeof data === 'string' ? data : JSON.stringify(data)], 'b.json')); $('#importFile').files = dt.files; $('#importFile').dispatchEvent(new w.Event('change')); await wait(100); return $('#dataStatus'); };
     check((await imp('{bozuk')).classList.contains('error'), 'Bozuk JSON reddedildi');
@@ -171,12 +229,18 @@
     await imp(backup);
     const restored = JSON.parse(localStorage.getItem('dil-atlasi-srs'));
     check(Object.keys(restored.cards).length === 13 && localStorage.getItem(`da:lesson:en:${day(-1)}`) === '1', 'Geri yükleme kartları ve görevleri getirdi, geçersizleri almadı');
+    check(restored.stats?.en?.n === 1 && JSON.parse(localStorage.getItem('dil-atlasi-plan')).langs.en.goal === 2 && JSON.parse(localStorage.getItem('dil-atlasi-gunluk')).d[today].en.c >= 13, 'Geri yükleme ölçüyü, planı ve istatistiği getirdi');
+    const v1 = {app:'dil-atlasi', schemaVersion:1, tasks:{[`da:speak:it:${day(-4)}`]:'1'}};
+    check(!(await imp(v1)).classList.contains('error') && localStorage.getItem(`da:speak:it:${day(-4)}`) === '1', 'Eski (sürüm 1) yedek hâlâ yüklenebiliyor');
 
     // 8) Sayaç
     w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
     $('#tab-ilerleme').click(); $('#timerDuration input[value="45"]').click();
     check($('#timerDisplay').textContent === '45:00' && localStorage.getItem('dil-atlasi-timer') === '45', 'Sayaç 45 dk seçildi');
     $('#timerToggle').click(); check($('#timerToggle').textContent === 'Duraklat', 'Sayaç başladı');
+    const realNow = w.Date.now; w.Date.now = () => realNow.call(w.Date) + 60_000; await wait(700);
+    check($('#timerDisplay').textContent === '44:00', 'Sayaç bitiş anından hesaplanıyor (arka planda kaymaz)', $('#timerDisplay').textContent);
+    w.Date.now = realNow;
     $('#timerToggle').click(); check($('#timerToggle').textContent === 'Devam et', 'Sayaç durdu');
     $('#timerReset').click(); check($('#timerDisplay').textContent === '45:00', 'Sayaç sıfırlandı');
     check($$('#lessonList li').length === 30 && $('#lessonList li.current').textContent === w.LESSONS.en[1].t, '30 günlük rota, güncel ders işaretli');

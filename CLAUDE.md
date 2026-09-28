@@ -22,6 +22,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - Ses: `utter()` her seslendirmede `voiceFor()` ile sesi seçer (kullanıcı seçimi `dil-atlasi-voices`, yoksa en yüksek `voiceScore`). Hız çarpanı `dil-atlasi-rate`. Doğal ses için kalıcı çözüm cihaza Premium/Enhanced ses indirmek ya da derleme sırasında üretilmiş ses dosyaları (lisans ve boyut değerlendirilmeli).
 - Hata defteri `dil-atlasi-notlar` (`{v:1, items:{"fr:n:xxxx": {t, tr, d}}}`): kullanıcı girdisi, yalnızca `textContent` ile gösterilir, 200 karakter sınırı, günde en fazla 2; ertesi günden itibaren tekrar kartı olur.
 - Ders adımında "Kendini sına": aynı gün hatırlama testi (kayıt tutmaz).
+- Cümle kurma başa sarmaz: her cümlenin ilk denemesi sayılır, son cümlede "Bitir" doğru/yanlış/atlanan özetini ve kaçırılan cümleleri gösterir; "Baştan" ilk cümleye döner ve sayımı sıfırlar.
 - `content/emoji.js`: yalnızca somut kelimeler için `"ders:kelime"` → emoji; dört dilde kelime sırası aynı olduğu için tek eşleme. Emoji Türkçe ipucunun yanında ek ipucudur, onun yerine geçmez.
 - İlerleme ölçüsü: kutu ≥ 2 (7+ gün aralık) kartların hatırlama oranı `dil-atlasi-srs.stats[dil] = {ok, n}`.
 - `dil-atlasi-sifirlama-2026-09` tek seferlik sıfırlama bayrağıdır; kaldırma, yoksa kullanıcının verisi yeniden silinir.
@@ -30,6 +31,12 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - Ders günü = o dilde bugünden önce çalışılan gün sayısı + 1 (`getLessonDay`); ayrı anahtar yoktur.
 - Aralıklı tekrar `dil-atlasi-srs` (v2); kart kimliği `dil:dersSırası:w|s + sıra`. Derslerin kelime/cümle sırasını değiştirme, yenisini sona ekle.
 - `speechSynthesis` ekran kilitlenince durur (özellikle iOS). Dinle sekmesi Wake Lock ile ekranı açık tutmaya çalışır; ekran kilitli dinleme için podcast bağlantıları verilir. Kalıcı çözüm: derleme sırasında üretilmiş tek parça ses dosyaları + Media Session API (ses lisansı ve boyut değerlendirilmeli).
+- Şema sürümü `dil-atlasi-surum` (şu an 2, anahtar yoksa 1). Yeni veri biçimi gerekince `SCHEMA` artır ve `MIGRATIONS[yeniSürüm]` adımı ekle; adımlar veri silmemeli. Geçişten önce kayıtlar `dil-atlasi-goc-yedegi`'ne kopyalanır; daha yeni sürümün verisine dokunulmaz.
+- Haftalık plan `dil-atlasi-plan` (`{v:1, langs:{en:{days:[0-6], goal:2|3|4}}}`, 0 = Pazar): yalnızca hatırlatır (dil düğmesinde nokta, Bugün'de ipucu, FR/IT aynı gün uyarısı); ders günü hesabını ve sırayı değiştirmez.
+- Günlük istatistik `dil-atlasi-gunluk` (`{v:1, d:{"YYYY-MM-DD":{en:{c, ok, m}}}}`; kart, bilinen kart, odak dakikası; 400 gün). Aşama sayıları `da:` anahtarlarından hesaplanır, ayrıca saklanmaz.
+- Telaffuz kaydı (Konuş adımı): mikrofon yalnızca dokununca açılır, kayıt bellekte blob olarak kalır, saklanmaz/gönderilmez, bitince mikrofon kapatılır, en fazla 10 sn. CSP'de `media-src 'self' blob:` bunun için var.
+- Yedek biçimi `schemaVersion: 2` (hatırlama ölçüsü, plan, günlük istatistik, hız eklendi); geri yükleme 1 ve 2'yi kabul eder.
+- Odak sayacı bitiş anından hesaplanır (arka planda kaymaz); tamamlanan süre günlük istatistiğe yazılır.
 - `content/*.js`, `app.js` veya `styles.css` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı (Service Worker bu dosyaları önbellekten verir).
 - `https://chatgpt.com/?q=` mesajı otomatik gönderir (doğrulandı). `claude.ai/new?q=` doğrulanamadı; Claude düğmesi mesajı kopyalayıp claude.ai/new açar.
 
@@ -50,15 +57,15 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - ~~İlerleme verisini JSON olarak dışa/içe aktarma~~ (yapıldı)
 - ~~Çalışma süresini 25/45/60 dakika seçebilme~~ (yapıldı)
 - ~~Günlük ders içeriğini 30 güne çıkarma~~ (dört dil, ortak A0 müfredatı)
-- Telaffuz kaydı için kullanıcı izniyle mikrofon desteği
+- ~~Telaffuz kaydı için kullanıcı izniyle mikrofon desteği~~ (yapıldı: Konuş adımı, kayıt saklanmaz)
 - ~~Service Worker güncelleme bildirimi~~ (yapıldı)
 
 ### Sürüm 1.2
 
-- Dil başına hedef ve haftalık program ayarı
+- ~~Dil başına hedef ve haftalık program ayarı~~ (yapıldı: `dil-atlasi-plan`)
 - ~~Kelime/cümle kartları için aralıklı tekrar sistemi~~ (yapıldı: Leitner kutuları)
-- Günlük ve haftalık istatistikler
-- Veri şemasına sürüm numarası ve kontrollü migration
+- ~~Günlük ve haftalık istatistikler~~ (yapıldı: `dil-atlasi-gunluk`)
+- ~~Veri şemasına sürüm numarası ve kontrollü migration~~ (yapıldı: `dil-atlasi-surum`)
 
 ### Sürüm 2
 
@@ -82,7 +89,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 
 ## Kabul testi
 
-Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (56 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (88 kontrol). Her değişiklikten sonra ikisi de geçmeli.
 
 
 - Dört dil arasında geçiş yapılabiliyor.
