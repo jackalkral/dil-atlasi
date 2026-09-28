@@ -87,8 +87,13 @@ for (const f of ['app.js', 'sw.js']) { let ok = true, msg = ''; try { new Functi
 
 // 3) Uygulama kabuğu: Service Worker'daki her dosya var olmalı.
 const shell = read('sw.js').match(/APP_SHELL = \[(.*?)\]/s)[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));
-shell.filter(p => p !== './').forEach(p => check(existsSync(root + p.slice(2)), `sw.js: ${p} bulunamadı`));
-['app.js', 'styles.css', 'content/media.js'].forEach(f => check(shell.includes('./' + f), `sw.js APP_SHELL ${f} içermeli`));
+shell.filter(p => p !== './').forEach(p => check(existsSync(root + p.slice(2).split('?')[0]), `sw.js: ${p} bulunamadı`));
+['app.js', 'styles.css', 'content/media.js'].forEach(f => check(shell.some(p => p.split('?')[0] === './' + f), `sw.js APP_SHELL ${f} içermeli`));
+// Sürümlü dosya adları: index.html'deki her yerel CSS/JS ?v=<CACHE_NAME sürümü> ile istenmeli ve önbellekte aynı adla bulunmalı
+// (aksi hâlde yeni sayfa eski önbellekteki dosyalarla açılır).
+{ const ver = read('sw.js').match(/CACHE_NAME = 'dil-atlasi-(v\d+)'/)[1], refs = [...read('index.html').matchAll(/(?:href|src)="(\.\/[^"]+\.(?:css|js)[^"]*)"/g)].map(m => m[1]);
+  check(refs.length >= 13, `index.html yerel CSS/JS bağlantıları bulunamadı (${refs.length})`);
+  refs.forEach(r => { check(r.endsWith(`?v=${ver}`), `index.html: ${r} sürümlü olmalı (?v=${ver})`); check(shell.includes(r), `sw.js APP_SHELL ${r} içermeli`); }); }
 
 // 4) Güvenlik: CSP var, satır içi betik/stil yok, innerHTML kullanılmıyor, dış bağlantılar noopener.
 const html = read('index.html'), app = read('app.js');
