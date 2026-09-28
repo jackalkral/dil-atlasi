@@ -76,6 +76,21 @@
     const idx = 0, target = w.LESSONS.fr[idx].p[0][0].split(/\s+/);
     for (const tok of target) { const c = $$('.step.open .build-pool .chip').find(x => x.textContent === tok); c && c.click(); }
     check($('.step.open .result').textContent.startsWith('Doğru'), 'Cümle kurma: doğru sıra kabul edildi');
+    // 3a) Cümle kurma sonu: başa sarmaz, doğru/yanlış özetini gösterir; Baştan ilk cümleye döner
+    const bx = () => $('.step.open .build-pool').parentElement, bbtn = t => [...bx().querySelectorAll('.step-actions .btn')].find(b => b.textContent.startsWith(t));
+    const solve = k => { for (const tok of w.LESSONS.fr[idx].p[k][0].split(/\s+/)) { const c = [...bx().querySelectorAll('.build-pool .chip')].find(x => x.textContent === tok); c && c.click(); } };
+    bbtn('Sıradaki').click(); check(bx().querySelector('p').textContent.startsWith('2/5'), 'Cümle kurma: ikinci cümle');
+    bbtn('Baştan').click(); check(bx().querySelector('p').textContent.startsWith('1/5'), 'Cümle kurma: Baştan ilk cümleye döndü');
+    solve(0); bbtn('Sıradaki').click();
+    [...bx().querySelectorAll('.build-pool .chip')].forEach(() => bx().querySelector('.build-pool .chip').click());
+    check(bx().querySelector('.result').classList.contains('no'), 'Cümle kurma: yanlış sıra reddedildi');
+    bbtn('Sıradaki').click(); bbtn('Sıradaki').click(); bbtn('Sıradaki').click(); solve(4);
+    check(!bbtn('Sıradaki') && !!bbtn('Bitir'), 'Son cümlede Sıradaki yerine Bitir');
+    bbtn('Bitir').click();
+    const sum = $('.step.open .build-target') ? '' : ($$('.step.open .result').find(r => /cümleden/.test(r.textContent))?.textContent || '');
+    check(/5 cümleden 2 doğru, 1 yanlış, 2 atlandı/.test(sum), 'Cümle kurma bitince özet gösterildi, başa sarmadı', sum);
+    [...w.document.querySelectorAll('.step.open .btn')].find(b => b.textContent === 'Baştan başla').click();
+    check(bx().querySelector('p').textContent.startsWith('1/5'), 'Özetten sonra Baştan başla ilk cümleye döndü');
     $$('.step.open .btn').find(b => b.textContent.startsWith('Tamamladım')).click();
     check(localStorage.getItem(`da:lesson:fr:${today}`) === '1', 'Kelimeler aşaması da:lesson anahtarına yazıldı');
     check($('.step.open .step-title').textContent === 'Dinle ve tekrar et', 'Sonraki aşama açıldı');

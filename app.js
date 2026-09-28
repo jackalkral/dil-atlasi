@@ -372,17 +372,29 @@ function selfQuiz(items, voice) {
   return box;
 }
 // Cümle kurma: Türkçesini gör, karışık kelimeleri doğru sıraya diz.
+// Her cümlenin ilk denemesi sayılır. Son cümleden sonra "Bitir" doğru/yanlış özetini gösterir; "Baştan" ilk cümleye döner ve sayımı sıfırlar.
 function sentenceBuilder(sentences, voice) {
-  let idx = 0; const box = el('div');
+  let idx = 0, results = []; const box = el('div');
+  const restart = () => { idx = 0; results = []; draw(); box.querySelector('.chip')?.focus(); };
+  const summary = () => {
+    const right = results.filter(r => r === true).length, wrong = results.filter(r => r === false).length, skipped = sentences.length - right - wrong;
+    const missed = sentences.filter((x, k) => results[k] !== true);
+    box.replaceChildren(
+      el('p', {className:`result ${wrong || skipped ? 'no' : 'ok'}`, role:'status', textContent:`Bitti! ${sentences.length} cümleden ${right} doğru, ${wrong} yanlış${skipped ? `, ${skipped} atlandı` : ''}.`}),
+      missed.length ? el('div', {className:'items'}, ...missed.map(([t, tr]) => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:t}), el('span', {textContent:tr})), speakBtn(t, voice)))) : '',
+      el('div', {className:'step-actions'}, el('button', {type:'button', className:'btn secondary', textContent:'Baştan başla', onclick: restart})));
+    box.querySelector('.step-actions .btn').focus();
+  };
   const draw = () => {
-    const [target, tr] = sentences[idx], tokens = target.split(/\s+/);
+    const [target, tr] = sentences[idx], tokens = target.split(/\s+/), last = idx === sentences.length - 1;
     // Karışık sıra, doğru cümleyle aynı çıkmasın.
     let order = shuffle(tokens.map((t, k) => k)); for (let n = 0; n < 10 && tokens.length > 1 && order.every((k, p) => tokens[k] === tokens[p]); n++) order = shuffle(order);
     const picked = [], tgt = el('div', {className:'build-target', ariaLabel:'Kurduğun cümle'}), pool = el('div', {className:'build-pool'}), res = el('div', {className:'result', role:'status'});
     const update = () => { tgt.replaceChildren(...picked.map((k, p) => el('button', {type:'button', className:'chip', textContent:tokens[k], onclick: () => { picked.splice(p, 1); update(); }}))); pool.replaceChildren(...order.filter(k => !picked.includes(k)).map(k => el('button', {type:'button', className:'chip', textContent:tokens[k], onclick: () => { picked.push(k); update(); if (picked.length === tokens.length) check(); }}))); };
-    const check = () => { const ok = picked.map(k => tokens[k]).join(' ') === target; res.className = `result ${ok ? 'ok' : 'no'}`; res.textContent = ok ? `Doğru! ${idx < sentences.length - 1 ? 'Sıradakine geç.' : 'Hepsi bitti.'}` : `Tam değil. Doğrusu: ${target}`; speak(target, voice); };
+    const check = () => { const ok = picked.map(k => tokens[k]).join(' ') === target; results[idx] ??= ok; res.className = `result ${ok ? 'ok' : 'no'}`; res.textContent = ok ? `Doğru! ${last ? 'Sonucu görmek için Bitir\'e dokun.' : 'Sıradakine geç.'}` : `Tam değil. Doğrusu: ${target}`; speak(target, voice); };
     box.replaceChildren(el('p', {className:'small', textContent:`${idx + 1}/${sentences.length} · “${tr}”`}), tgt, pool, res,
-      el('div', {className:'step-actions'}, el('button', {type:'button', className:'btn secondary', textContent:'Baştan', onclick: draw}), el('button', {type:'button', className:'btn secondary', textContent:'Sıradaki →', onclick: () => { idx = (idx + 1) % sentences.length; draw(); }})));
+      el('div', {className:'step-actions'}, el('button', {type:'button', className:'btn secondary', textContent:'Baştan', onclick: restart}),
+        el('button', {type:'button', className:'btn secondary', textContent: last ? 'Bitir ✓' : 'Sıradaki →', onclick: () => { if (last) summary(); else { idx++; draw(); } }})));
     update();
   };
   draw(); return box;

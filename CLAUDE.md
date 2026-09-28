@@ -22,6 +22,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - Ses: `utter()` her seslendirmede `voiceFor()` ile sesi seçer (kullanıcı seçimi `dil-atlasi-voices`, yoksa en yüksek `voiceScore`). Hız çarpanı `dil-atlasi-rate`. Doğal ses için kalıcı çözüm cihaza Premium/Enhanced ses indirmek ya da derleme sırasında üretilmiş ses dosyaları (lisans ve boyut değerlendirilmeli).
 - Hata defteri `dil-atlasi-notlar` (`{v:1, items:{"fr:n:xxxx": {t, tr, d}}}`): kullanıcı girdisi, yalnızca `textContent` ile gösterilir, 200 karakter sınırı, günde en fazla 2; ertesi günden itibaren tekrar kartı olur.
 - Ders adımında "Kendini sına": aynı gün hatırlama testi (kayıt tutmaz).
+- Cümle kurma başa sarmaz: her cümlenin ilk denemesi sayılır, son cümlede "Bitir" doğru/yanlış/atlanan özetini ve kaçırılan cümleleri gösterir; "Baştan" ilk cümleye döner ve sayımı sıfırlar.
 - `content/emoji.js`: yalnızca somut kelimeler için `"ders:kelime"` → emoji; dört dilde kelime sırası aynı olduğu için tek eşleme. Emoji Türkçe ipucunun yanında ek ipucudur, onun yerine geçmez.
 - İlerleme ölçüsü: kutu ≥ 2 (7+ gün aralık) kartların hatırlama oranı `dil-atlasi-srs.stats[dil] = {ok, n}`.
 - `dil-atlasi-sifirlama-2026-09` tek seferlik sıfırlama bayrağıdır; kaldırma, yoksa kullanıcının verisi yeniden silinir.
@@ -88,7 +89,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 
 ## Kabul testi
 
-Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (82 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (88 kontrol). Her değişiklikten sonra ikisi de geçmeli.
 
 
 - Dört dil arasında geçiş yapılabiliyor.
