@@ -245,6 +245,16 @@
     w = stub(frame.contentWindow); check(!w.__eskiSayfa, 'Yenile ve devam et sayfayı yeniledi');
     $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
     check($('.step.open .step-title')?.textContent === 'Konuş' && !!$('#pronTest'), 'Yenileme sonrası Konuş adımı açık, telaffuz testi hazır', $('.step.open .step-title')?.textContent);
+    const back = $('.pron-item.ready');
+    check(back?.dataset.t === w.LESSONS.fr[0].w[0][0] && /Şimdi ✓ Kontrol et/.test(back.querySelector('.check').textContent), 'Yenileme sonrası aynı kelimeye dönüldü, "şimdi dokun ve söyle" yazıyor', back?.dataset.t);
+    // Kullanıcının v22 durumu: sayfanın İLK oturumu da sessiz (ör. önce seslendirme çalındı) → yine Yenile önerilir, tanılamada tts sayısı görünür
+    let micOpen2 = 0;
+    w.SpeechRecognition = w.webkitSpeechRecognition = class { start() { micOpen2++; this.onstart?.(); this.onaudiostart?.(); } stop() { w.setTimeout(() => this.onend?.(), 5); } abort() {} };
+    $$('.step.open .pron-item .speak')[1].click();
+    const tools1 = $$('.step.open .pron-item')[1].querySelector('.pron-tools'), chk1 = [...tools1.querySelectorAll('.btn')].find(b => b.textContent.includes('Kontrol'));
+    chk1.click(); await wait(40);
+    const t1 = tools1.querySelector('.check').textContent;
+    check(!!tools1.querySelector('.check .btn') && /Yenile/.test(tools1.querySelector('.check .btn').textContent) && /oturum 1/.test(t1) && /tts [1-9]/.test(t1), 'İlk oturum da sessizse Yenile önerisi; tanılamada seslendirme sayısı', t1);
     check(w.matchWords("J'ai un chat.", 'jai un chat').score < 1 && w.matchWords('Ça va très bien', 'ca va tres bien').score === 1, 'Karşılaştırma aksan ve noktalamayı yok sayıyor');
     check(!Object.keys(localStorage).some(k => /kayit|rec|audio/i.test(k)), 'Ses kaydı saklanmadı');
 

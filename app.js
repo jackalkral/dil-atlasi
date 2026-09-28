@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v23';
+const APP_VERSION = 'v24';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
@@ -166,6 +166,7 @@ function voiceFor(lang) {
 const genderAvailable = (lang, g) => voiceList(lang).some(v => voiceGender(v) === g);
 const rateFactor = () => [0.8, 1, 1.15].includes(+store.get(RATE_KEY)) ? +store.get(RATE_KEY) : 1;
 function utter(text, lang, rate) {
+  AUDIO_USE.tts++;
   const u = new SpeechSynthesisUtterance(text), v = voiceFor(lang);
   u.lang = v?.lang || lang; if (v) try { u.voice = v; } catch {} u.rate = rate * rateFactor();
   return u;
@@ -180,6 +181,9 @@ function stopAudio() {
   if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
   document.querySelectorAll('audio').forEach(a => { a.onended = null; a.pause(); });
 }
+// Sayfa yüklendiğinden beri seslendirme (tts) ve kayıt (rec) sayısı: telaffuz kontrolü başarısız olursa tanılama satırında gösterilir
+// (iPhone'da seslendirme ya da kayıttan sonra mikrofonun sessiz açıldığından şüpheleniliyor; bu sayılar bunu doğrulamak için).
+const AUDIO_USE = {tts: 0, rec: 0};
 function speak(text, lang = languages[active].voice, rate = .85) {
   if (!('speechSynthesis' in window)) return;
   stopAudio(); speechSynthesis.speak(utter(text, lang, rate));
@@ -527,12 +531,12 @@ function recorder(text, voice) {
       if (lastRec) { URL.revokeObjectURL(lastRec.url); lastRec.player.replaceChildren(); }
       const url = URL.createObjectURL(new Blob(chunks, {type: rec.mimeType || 'audio/webm'})); lastRec = {url, player};
       const audio = el('audio', {controls:true, preload:'auto', src:url, ariaLabel:'Senin kaydın'});
-      audio.onerror = () => { status.replaceChildren(el('span', {textContent:'Kayıt oynatılamadı; iPhone mikrofonu bu sayfada takılmış olabilir. '}), reloadBtn()); };
+      audio.onerror = () => { status.replaceChildren(el('span', {textContent:'Kayıt oynatılamadı; iPhone mikrofonu bu sayfada takılmış olabilir. '}), reloadBtn(text)); };
       const both = () => { stopAudio(); audio.currentTime = 0; audio.onended = () => { audio.onended = null; speak(text, voice); }; audio.play().catch(() => {}); };
       player.replaceChildren(audio, el('div', {className:'row'}, el('button', {type:'button', className:'btn secondary', textContent:'▶ Ben, sonra doğrusu', onclick: both})));
       status.textContent = 'Kaydını dinle; doğrusu için üstteki ▶.';
     };
-    rec.start(); btn.textContent = '■ Bitir'; status.textContent = `Kaydediliyor… cümleyi söyle (en fazla ${REC_MAX_MS / 1000} sn).`;
+    rec.start(); AUDIO_USE.rec++; btn.textContent = '■ Bitir'; status.textContent = `Kaydediliyor… cümleyi söyle (en fazla ${REC_MAX_MS / 1000} sn).`;
     timer = setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, REC_MAX_MS);
   };
   return {btn, panel: el('div', {className:'rec'}, status, player)};
@@ -642,8 +646,9 @@ function asrStop() {
   asrBar();
 }
 // Yenile ve devam et: yenilemeden sonra Konuş adımı açılır ve telaffuz testine kaydırılır.
-function reloadToSpeak() { try { sessionStorage.setItem(ASR_REOPEN_KEY, '1'); } catch {} location.reload(); }
-const reloadBtn = () => el('button', {type:'button', className:'btn', textContent:'↻ Yenile ve devam et', onclick: reloadToSpeak});
+// Yenile ve devam et: yenilemeden sonra Konuş adımı açılır, aynı satıra kaydırılır ve "şimdi dokun ve söyle" denir.
+function reloadToSpeak(row) { try { sessionStorage.setItem(ASR_REOPEN_KEY, row || '1'); } catch {} location.reload(); }
+const reloadBtn = row => el('button', {type:'button', className:'btn', textContent:'↻ Yenile ve devam et', onclick: () => reloadToSpeak(row)});
 function checker(text, voice) {
   const btn = el('button', {type:'button', className:'btn secondary', textContent:'✓ Kontrol et'}), panel = el('div', {className:'check', role:'status'});
   let cur = null; // bu satırın bekleyen kontrolü
@@ -660,7 +665,7 @@ function checker(text, voice) {
       words, el('p', {className:'small muted', textContent:`Anlaşılan: „${best.h}”`}));
   };
   // Başarısızlıkta: mesaj, gerekirse "Yenile ve devam et", ve tanılama satırı (sürüm + tanıma olayları).
-  const fail = (msg, reload) => panel.replaceChildren(el('p', {textContent:msg}), reload ? reloadBtn() : '', el('p', {className:'small muted diag', textContent:`Tanılama ${APP_VERSION}: ${ASR.log.join(' → ') || '—'} · oturum ${ASR.starts} · son duyulan: „${ASR.results.join(' ').trim().slice(-60) || '—'}”`}));
+  const fail = (msg, reload) => panel.replaceChildren(el('p', {textContent:msg}), reload ? reloadBtn(text) : '', el('p', {className:'small muted diag', textContent:`Tanılama ${APP_VERSION}: ${ASR.log.join(' → ') || '—'} · oturum ${ASR.starts} · tts ${AUDIO_USE.tts} · kayıt ${AUDIO_USE.rec} · son duyulan: „${ASR.results.join(' ').trim().slice(-60) || '—'}”`}));
   // Dokunmanın içinde eşzamanlı çalışır; burada await olmamalı.
   const listen = () => {
     stopAudio();
@@ -672,9 +677,9 @@ function checker(text, voice) {
       if (kind === 'cancel') { panel.replaceChildren(); return; }
       if (heard) { showResult(heard); return; }
       if (ASR_FATAL.includes(kind)) { fail(ASR_ERRORS[kind]); return; }
-      // Hiç ses gelmedi: bu, sayfanın ilk oturumu değilse ve oturumdan hiç sonuç gelmediyse iPhone'un sessiz oturumudur.
-      const silentReopen = ASR.starts > 1 && ASR.heard === 0;
-      fail(silentReopen ? 'Mikrofondan ses gelmiyor. iPhone mikrofonu bu sayfada yeniden açamadı; yenileyince düzelir.' : ASR_ERRORS['no-speech'], silentReopen);
+      // Oturumdan hiç sonuç gelmediyse mikrofon sessiz açılmış olabilir (iPhone'da ilk oturumda da görüldü, v22): her durumda yenileme önerilir.
+      const silent = ASR.heard === 0;
+      fail(silent ? 'Mikrofondan ses gelmedi. iPhone bazen seslendirme ya da kayıttan sonra mikrofonu sessiz açıyor; yenileyince düzelir ve bu kelimeye dönersin.' : ASR_ERRORS['no-speech'], silent);
     };
     const owner = {
       finish: () => finish(),
@@ -695,10 +700,12 @@ function checker(text, voice) {
 // Telaffuz testi satırı: hedef metin, okunuş ve Türkçe anlam yazılı; ▶ dinle, 🎙 kaydet, ✓ kontrol et.
 function pronRow(t, tr, pron, voice) {
   const r = canRecord() ? recorder(t, voice) : null, c = canCheck() ? checker(t, voice) : null;
-  return el('div', {className:'item pron-item'},
+  const row = el('div', {className:'item pron-item'},
     el('div', {}, el('strong', {textContent:t}), pron ? el('span', {className:'pron', textContent:`[${pron}]`}) : '', el('span', {textContent:tr})),
     speakBtn(t, voice),
     r || c ? el('div', {className:'pron-tools'}, el('div', {className:'row'}, r?.btn || '', c?.btn || ''), r?.panel || '', c?.panel || '') : '');
+  row.dataset.t = t; // "Yenile ve devam et" sonrası aynı satıra dönmek için
+  return row;
 }
 
 // ---------- Dinle: eller serbest ses çalışması ----------
@@ -962,10 +969,15 @@ function registerAgentTools() {
 }
 
 // "Yenile ve devam et" sonrası: Konuş adımını aç ve telaffuz testine kaydır.
-let reopenSpeak = false; try { reopenSpeak = sessionStorage.getItem(ASR_REOPEN_KEY) === '1'; sessionStorage.removeItem(ASR_REOPEN_KEY); } catch {}
+let reopenSpeak = ''; try { reopenSpeak = sessionStorage.getItem(ASR_REOPEN_KEY) || ''; sessionStorage.removeItem(ASR_REOPEN_KEY); } catch {}
 if (reopenSpeak) { tab = 'bugun'; openStep = STEPS.findIndex(s => s.task === 'speak'); }
 switchTab(tab); render(); updateTimer(); registerAgentTools();
-if (reopenSpeak) $('#pronTest')?.scrollIntoView({block:'start'});
+if (reopenSpeak) {
+  const row = [...document.querySelectorAll('#pronTest .pron-item')].find(r => r.dataset.t === reopenSpeak);
+  (row || $('#pronTest'))?.scrollIntoView({block:'center'});
+  const panel = row?.querySelector('.check');
+  if (panel) { row.classList.add('ready'); panel.textContent = 'Sayfa yenilendi, mikrofon hazır. Şimdi ✓ Kontrol et\'e dokun ve söyle.'; }
+}
 
 if ('serviceWorker' in navigator) {
   let reloading = false;

@@ -181,3 +181,4 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top));z-index:30;width:max-content;max-width:calc(100vw - 32px);padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);box-shadow:var(--shadow);font-size:.86rem;font-weight:700}
 @media (max-width:420px){.top-inner{gap:6px}.langs{gap:4px}.lang-chip{padding:6px 8px;font-size:.8rem}.gender button{width:32px}}
 @media (max-width:360px){.brand{display:none}}
+.pron-item.ready{border-color:var(--lang);box-shadow:0 0 0 2px color-mix(in srgb,var(--lang) 35%,transparent)}
