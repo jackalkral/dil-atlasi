@@ -436,6 +436,10 @@
     check(w.document.documentElement.dataset.theme === 'light' && $('#themeOpts input[value="light"]').checked && $('meta[name="theme-color"]').content === '#f5f6f8', 'Açık tema yenilemede korundu');
     $('#themeOpts input[value="dark"]').click();
     check(w.document.documentElement.dataset.theme === 'dark' && /10, 13, 19/.test(bgOf()), 'Koyu tema seçildi', bgOf());
+    $('#themeToggle').click();
+    check(localStorage.getItem('dil-atlasi-tema') === 'light' && w.document.documentElement.dataset.theme === 'light' && $('#themeOpts input[value="light"]').checked && $('#themeToggle').getAttribute('aria-label') === 'Koyu temaya geç', 'Başlıktaki ☀/☾ düğmesi açık temaya geçirdi');
+    $('#themeToggle').click();
+    check(w.document.documentElement.dataset.theme === 'dark', 'Başlıktaki düğme koyu temaya geri geçirdi');
     $('#themeOpts input[value=""]').click();
     check(!localStorage.getItem('dil-atlasi-tema') && !w.document.documentElement.dataset.theme, 'Sistem temasına dönüldü');
 

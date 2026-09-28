@@ -92,7 +92,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 - Yazı tipi: Inter değişken (`fonts/inter-latin*.woff2`, @fontsource-variable/inter 5.2.8, SIL OFL 1.1 → `fonts/OFL.txt`), uygulamayla birlikte gelir (dış yazı tipi sunucusu yok, CSP 'self'), `sw.js` önbelleğinde. Tipografi ölçeği: display başlıklar 650 ve sıkı harf aralığı (-.035em), başlık/düğme 600, metin 400; 700 üstü ağırlık kullanma. Ders başlığında ince renk geçişi.
 - Tema: `dil-atlasi-tema` ('light' | 'dark', yoksa sistem; İlerleme → Görünüm). `theme.js` (<head>, CSP yüzünden ayrı dosya) açılışta `data-theme` ve `theme-color`'ı uygular; açık palet `:root[data-theme="light"]` ve sistem açıkken `@media (prefers-color-scheme: light)` ile. Renkler yalnızca değişkenlerden gelir (`--tint-1..3`, `--on-lang`, `--text-2`; sabit rgba/hex yazma). Dil rengi JS'te `--lang-base`; açık temada `--lang` %55 koyulaştırılır, dil rengi üstündeki yazı beyaz.
 - Görsel dil: nötr koyu zemin (`--bg #0a0d13`, kart `--panel #11151d`), ince yarı saydam çizgiler (`--line`, `--line-strong`), gradyansız düz kartlar, 22px köşe, geniş boşluklar; düğmeler hap biçimli (ikincil: saydam + çerçeve); dil rengi (`--lang`) vurgu ve üstte hafif ışıma için. Metin kontrastı ≥ 4.5:1 kalmalı.
-- Başlık (`.top`) yapışık (`position: sticky/fixed`) yapılmaz ve `backdrop-filter` kullanmaz: iPhone yapışık katmandaki yazıları bulanık çiziyor (v22 ve v27'de kullanıcı ekranında görüldü).
+- Başlık (`.top`) yapışık yapılmaz, `backdrop-filter` kullanmaz ve üstte `env(safe-area-inset-top) + 30px` boşluk bırakır: iOS 26 ana ekran uygulamalarında durum çubuğunun altındaki şeridi bulanıklaştırıyor; başlık yapışık değilken de bulanıklık sürdü (v30 ekran görüntüsü), düğmeler o şeridin altında kalmalı. Başlıkta ☀/☾ tema düğmesi (`#themeToggle`, açık ↔ koyu; "Sistem" İlerleme → Görünüm'de); 430 px altında "A" logosu gizlenir.
 - `index.html` içinde CSP meta etiketi var (`default-src 'self'`). Satır içi betik ve `style=""` özniteliği ekleme; stil `styles.css`'e, betik `app.js`'e gider. `innerHTML` kullanma, `el()` yardımcısı ve `textContent` kullan.
 
 ## Çalışma akışı
@@ -101,7 +101,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 
 ## Kabul testi
 
-Otomatik: `node tests/content.test.mjs` (app.js/sw.js sözdizimi dahil) ve tarayıcıda `tests/smoke.html` (140 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+Otomatik: `node tests/content.test.mjs` (app.js/sw.js sözdizimi dahil) ve tarayıcıda `tests/smoke.html` (142 kontrol). Her değişiklikten sonra ikisi de geçmeli.
 
 
 - Dört dil arasında geçiş yapılabiliyor.
