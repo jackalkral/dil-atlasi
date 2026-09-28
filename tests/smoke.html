@@ -118,7 +118,7 @@
     check(spoken.length === 8, '"Hepsini dinle" yalnızca basınca 8 kelimeyi okudu', `çalınan=${spoken.length}`);
 
     // 4) Dinle: ses çalışması baştan sona, Türkçe seslendirilmez, anlam yazılı; bitince shadow işaretlenir
-    spoken.length = 0; $('#tab-yuru').click(); $('#drillPlay').click(); await wait(2);
+    spoken.length = 0; $('#tab-yuru').click(); $('#drillPlay').click(); for (let i = 0; i < 40 && !$('#drillTr').textContent; i++) await wait(5);
     check($('#drillL2').textContent === w.LESSONS.fr[0].w[0][0] && $('#drillTr').textContent.endsWith(w.LESSONS.fr[0].w[0][1]), 'Ses çalışması: hedef dil büyük, Türkçe anlam altında yazılı', $('#drillTr').textContent);
     for (let i = 0; i < 400 && !$('#drillL1').textContent.startsWith('Bitti'); i++) await wait(50);
     check($('#drillL1').textContent.startsWith('Bitti'), 'Ses çalışması tamamlandı');
@@ -157,9 +157,14 @@
     w.navigator.mediaDevices.getUserMedia = async () => { if (deny) throw Object.assign(new Error('x'), {name:'NotAllowedError'}); return {getTracks: () => [{stop() { stopped++; }}]}; };
     w.MediaRecorder = class { constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; } start() { this.state = 'recording'; } stop() { this.state = 'inactive'; this.ondataavailable({data:new w.Blob(['x'], {type:'audio/webm'})}); this.onstop(); } };
     let heardText = '';
-    // iPhone Safari gibi: sonuçtan sonra oturum kendiliğinden kapanmaz (onend gelmez); uygulama abort() ile kapatmalı.
-    let micOpen = 0;
-    w.SpeechRecognition = w.webkitSpeechRecognition = class { start() { micOpen++; this.open = true; const t = heardText; w.setTimeout(() => this.onresult({results:[[{transcript:t}]]}), 5); } stop() {} abort() { if (this.open) { this.open = false; micOpen--; } } };
+    // iPhone Safari gibi: yalnızca ara sonuç gelir (isFinal yok), oturum kendiliğinden kapanmaz, abort() sonrası geç kapanır;
+    // önceki oturum kapanmadan başlatılan yeni oturum hiç sonuç vermez.
+    let micOpen = 0, live = 0;
+    w.SpeechRecognition = w.webkitSpeechRecognition = class {
+      start() { const dead = live > 0; live++; micOpen++; this.open = true; if (dead) return; const t = heardText; w.setTimeout(() => this.open && this.onresult({resultIndex:0, results:[Object.assign([{transcript:t}], {isFinal:false})]}), 5); }
+      stop() {}
+      abort() { if (!this.open) return; this.open = false; micOpen--; w.setTimeout(() => { live--; this.onerror?.({error:'aborted'}); this.onend?.(); }, 5); }
+    };
     const hk = $$('.step-head'); hk[3].click(); if ($$('.step-head')[3].getAttribute('aria-expanded') !== 'true') $$('.step-head')[3].click();
     const rows = $$('.step.open .pron-item');
     check(rows.length === 13 && rows[0].querySelector('strong').textContent === w.LESSONS.fr[0].w[0][0] && rows[0].textContent.includes(w.LESSONS.fr[0].w[0][1]), 'Telaffuz testi: 8 kelime + 5 cümle, Türkçe anlam yazılı', `satır=${rows.length}`);
@@ -181,9 +186,14 @@
     check(localStorage.getItem('dil-atlasi-tanima') === '1' && /%100/.test(tools.querySelector('.check').textContent), 'Doğru söylenince %100', tools.querySelector('.check').textContent);
     check(micOpen === 0 && chk.textContent === '✓ Kontrol et', 'Sonuçtan sonra konuşma tanıma kapandı (mikrofon açık kalmadı)', `açık=${micOpen}`);
     const words8 = target8.split(/\s+/).filter(x => /\p{L}/u.test(x)); heardText = words8.slice(0, -1).join(' ') + ' xyz';
-    chk.click(); await wait(40);
-    check(micOpen === 0, 'İkinci kontrolden sonra da mikrofon kapandı', `açık=${micOpen}`);
+    chk.click(); await wait(60);
+    check(micOpen === 0 && live === 0, 'İkinci kontrolden sonra da mikrofon kapandı', `açık=${micOpen}`);
     check(tools.querySelectorAll('.check .word-miss').length === 1 && tools.querySelectorAll('.check .word-ok').length === words8.length - 1, 'Eksik kelime kırmızı işaretlendi', tools.querySelector('.check').textContent);
+    heardText = target8; chk.click(); await wait(60);
+    check(/%100/.test(tools.querySelector('.check').textContent), 'Üçüncü kontrol de sonuç verdi (art arda çalışıyor)', tools.querySelector('.check').textContent);
+    heardText = 'good'; chk.click(); await wait(2); chk.click(); await wait(60);
+    check(!/Dinliyorum/.test(tools.querySelector('.check').textContent) && chk.textContent === '✓ Kontrol et' && micOpen === 0, 'Dinlerken dokununca o ana kadarki sonuç gösterildi ve kapandı', tools.querySelector('.check').textContent);
+    check(![...tools.querySelectorAll('.btn')].some(b => b.textContent === '▶ Doğrusu'), '"▶ Doğrusu" düğmesi kaldırıldı');
     check(w.matchWords("J'ai un chat.", 'jai un chat').score < 1 && w.matchWords('Ça va très bien', 'ca va tres bien').score === 1, 'Karşılaştırma aksan ve noktalamayı yok sayıyor');
     check(!Object.keys(localStorage).some(k => /kayit|rec|audio/i.test(k)), 'Ses kaydı saklanmadı');
 
