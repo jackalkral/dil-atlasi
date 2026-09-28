@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v30';
+const APP_VERSION = 'v31';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
@@ -892,8 +892,15 @@ function applyTheme() {
   t ? root.setAttribute('data-theme', t) : root.removeAttribute('data-theme');
   const light = t === 'light' || (!t && matchMedia('(prefers-color-scheme: light)').matches);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f5f6f8' : '#0a0d13');
+  $('#themeToggle')?.setAttribute('aria-label', light ? 'Koyu temaya geç' : 'Açık temaya geç');
 }
 document.querySelectorAll('#themeOpts input').forEach(i => { i.onchange = () => { i.value ? store.set(THEME_KEY, i.value) : store.del(THEME_KEY); applyTheme(); }; });
+const themeIsLight = () => themePref() === 'light' || (!themePref() && matchMedia('(prefers-color-scheme: light)').matches);
+// Başlıktaki ☀/☾: tek dokunuşla açık ↔ koyu (açık seçim olarak kaydedilir; "Sistem" İlerleme → Görünüm'de).
+$('#themeToggle').onclick = () => {
+  store.set(THEME_KEY, themeIsLight() ? 'dark' : 'light'); applyTheme();
+  document.querySelectorAll('#themeOpts input').forEach(i => { i.checked = i.value === themePref(); });
+};
 matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', applyTheme);
 
 function render() {
@@ -1017,7 +1024,7 @@ function registerAgentTools() {
 // "Yenile ve devam et" sonrası: Konuş adımını aç ve telaffuz testine kaydır.
 let reopenSpeak = null; try { const raw = sessionStorage.getItem(ASR_REOPEN_KEY); sessionStorage.removeItem(ASR_REOPEN_KEY); if (raw) { try { reopenSpeak = JSON.parse(raw); } catch { reopenSpeak = {row: raw, kind: 'mic'}; } if (typeof reopenSpeak !== 'object' || !reopenSpeak) reopenSpeak = {row: '', kind: 'mic'}; } } catch {}
 if (reopenSpeak) { tab = 'bugun'; openStep = STEPS.findIndex(s => s.task === 'speak'); }
-switchTab(tab); render(); updateTimer(); registerAgentTools();
+applyTheme(); switchTab(tab); render(); updateTimer(); registerAgentTools();
 if (reopenSpeak) {
   const row = [...document.querySelectorAll('#pronTest .pron-item')].find(r => r.dataset.t === reopenSpeak.row);
   (row || $('#pronTest'))?.scrollIntoView({block:'center'});
