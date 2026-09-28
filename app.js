@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v18';
+const APP_VERSION = 'v19';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
@@ -253,9 +253,9 @@ function renderLangs() {
     nav.append(b);
   });
 }
-function switchLang(id) { stopDrill(); active = id; store.set('dil-atlasi-active', id); openStep = null; render(); }
+function switchLang(id) { stopDrill(); releaseMic(); active = id; store.set('dil-atlasi-active', id); openStep = null; render(); }
 function switchTab(id) {
-  if (id !== tab) stopAudio();
+  if (id !== tab) { stopAudio(); releaseMic(); }
   tab = id; store.set('dil-atlasi-tab', id);
   TABS.forEach(t => { const on = t === id; $(`#tab-${t}`).setAttribute('aria-selected', on); $(`#tab-${t}`).tabIndex = on ? 0 : -1; $(`#panel-${t}`).hidden = !on; });
   window.scrollTo({top: 0});
@@ -294,6 +294,7 @@ function renderToday() {
     if (open) wrap.append(el('div', {className:'step-body'}, ...stepBody(s, lesson, due, i)));
     box.append(wrap);
   });
+  asrBar();
 }
 function planHint() {
   const l = languages[active], p = planFor();
@@ -453,7 +454,8 @@ function speakBody(lesson, voice, i) {
   return [
     el('div', {className:'eyebrow', textContent:'1 · Telaffuz testi'}),
     el('p', {className:'small', textContent:`Bugünün kelime ve cümlelerini ▶ ile dinle, sonra kendin söyle. ${tools.join(' ') || 'Bu tarayıcı mikrofonu desteklemiyor; dinleyip yüksek sesle tekrar et.'}`}),
-    el('div', {className:'items'}, ...testItems.map(([t, tr, pron]) => pronRow(t, tr, pron, voice))),
+    el('div', {className:'asr-bar', id:'asrBar', role:'status', hidden:true}),
+    el('div', {className:'items', id:'pronTest'}, ...testItems.map(([t, tr, pron]) => pronRow(t, tr, pron, voice))),
     el('div', {className:'eyebrow mt', textContent:'2 · Kendi kendine'}),
     el('p', {className:'small', textContent:'Türkçe anlamı oku, cümleyi hedef dilde yüksek sesle söyle, sonra dokunup doğrusunu gör.'}), say,
     el('div', {className:'eyebrow mt', textContent:'3 · Yapay zekâyla sesli sohbet (isteğe bağlı)'}),
@@ -501,6 +503,7 @@ function recorder(text, voice) {
       if (lastRec) { URL.revokeObjectURL(lastRec.url); lastRec.player.replaceChildren(); }
       const url = URL.createObjectURL(new Blob(chunks, {type: rec.mimeType || 'audio/webm'})); lastRec = {url, player};
       const audio = el('audio', {controls:true, preload:'auto', src:url, ariaLabel:'Senin kaydın'});
+      audio.onerror = () => { status.replaceChildren(el('span', {textContent:'Kayıt oynatılamadı; iPhone mikrofonu bu sayfada takılmış olabilir. '}), reloadBtn()); };
       const both = () => { stopAudio(); audio.currentTime = 0; audio.onended = () => { audio.onended = null; speak(text, voice); }; audio.play().catch(() => {}); };
       player.replaceChildren(audio, el('div', {className:'row'}, el('button', {type:'button', className:'btn secondary', textContent:'▶ Ben, sonra doğrusu', onclick: both})));
       status.textContent = 'Kaydını dinle; doğrusu için üstteki ▶.';
@@ -528,99 +531,126 @@ function matchWords(target, heard) {
   for (let i = 0, j = 0; i < a.length && j < b.length;) { if (a[i] === b[j]) { ok[i] = true; i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++; }
   return {words: tw.map((w, i) => ({w, ok: ok[i]})), score: a.length ? ok.filter(Boolean).length / a.length : 0};
 }
-// iPhone Safari'de gerçek cihazda görülenler: ilk kontrol çalışıyor, sonraki kontroller "Ses duyulmadı" diyor.
-// Bilinenler: start() yalnızca dokunmanın içinde, beklemeden çağrılırsa dinler; önceki oturum 'end' göndermeden yenisi dinlemez;
-// abort() 'end' göndermez, stop() gönderir; son (isFinal) sonuç çoğu zaman gelmez. En olası neden: her kontrolde yeni
-// SpeechRecognition nesnesi oluşturmak — WebKit ilk nesneden sonrakilere ses vermeyebiliyor.
-// Bu yüzden tek bir tanıma nesnesi (ASR.r) oluşturulur ve her dokunuşta aynısı start() edilir. Olaylar ASR.log'a yazılır;
-// kontrol başarısız olursa satırda kısa bir tanılama satırı gösterilir (gerçek cihazdaki davranışı görmek için).
-const ASR_QUIET_MS = 1200, ASR_END_WAIT_MS = 1500, ASR_STUCK_MS = 3000;
-const ASR = {r: null, state: 'idle', owner: null, stopAt: 0, log: [], endT: null};
+// Telaffuz kontrolünün iPhone'daki davranışı (gerçek cihaz tanılamasıyla görüldü, v18: "başladı → mikrofon" ve sonra hiçbir şey):
+// sayfada ilk açılan tanıma oturumu çalışıyor; sonraki her oturumda mikrofon açılıyor ama ses gelmiyor. Ayrıca start() yalnızca dokunmanın
+// içinde, beklemeden çağrılırsa dinler; son (isFinal) sonuç çoğu zaman gelmez.
+// Bu yüzden: ilk ✓ Kontrol et dokunuşu tek bir sürekli oturum (continuous) açar ve sonraki bütün kontroller aynı oturumu kullanır.
+// Her kontrol, dokunduğu andaki kelime sayısını başlangıç (base) alır; ondan sonra söylenenler ASR_QUIET_MS sessizlikten sonra değerlendirilir.
+// Oturum açıkken "Mikrofon açık · Kapat" çubuğu görünür; ASR_IDLE_MS kullanılmazsa, sekme değişince ya da uygulama arka plana geçince kapanır.
+// Kapandıktan sonra yeniden açılan oturum sessiz kalırsa sayfayı yenileme önerilir (yenileme iPhone'da mikrofonu sıfırlar; Konuş adımı yeniden açılır).
+const ASR_QUIET_MS = 1200, ASR_IDLE_MS = 30000, ASR_END_WAIT_MS = 1500, ASR_STUCK_MS = 3000, ASR_REOPEN_KEY = 'dil-atlasi-konus-ac';
+const ASR = {r: null, state: 'idle', owner: null, log: [], starts: 0, heard: 0, words: [], base: 0, lang: '', stopAt: 0, lastUse: 0, idleI: null, endT: null};
 const ASR_EVENTS = {start:'başladı', audiostart:'mikrofon', soundstart:'ses', speechstart:'konuşma', speechend:'konuşma bitti', audioend:'mikrofon kapandı', nomatch:'eşleşme yok'};
+const ASR_ERRORS = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. ✓ Kontrol et\'e dokun ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'};
+const ASR_FATAL = ['not-allowed', 'service-not-allowed', 'network', 'audio-capture'];
+function asrBar() {
+  const bar = document.getElementById('asrBar'); if (!bar) return;
+  const on = ASR.state === 'listening';
+  bar.hidden = !on;
+  if (on) bar.replaceChildren(el('span', {textContent:`🎙 Mikrofon açık · ${ASR_IDLE_MS / 1000} sn kullanılmazsa kapanır`}), el('button', {type:'button', className:'btn secondary', textContent:'Kapat', onclick: asrStop}));
+}
+function asrEnded() {
+  clearTimeout(ASR.endT); clearInterval(ASR.idleI); micStoppers.delete(asrStop);
+  ASR.state = 'idle'; const o = ASR.owner; ASR.owner = null; o?.ended(); asrBar();
+}
 function asrInstance() {
   if (ASR.r) return ASR.r;
   const r = new (SpeechRec())(); ASR.r = r;
-  Object.entries(ASR_EVENTS).forEach(([ev, name]) => { r[`on${ev}`] = () => { if (ASR.r === r) ASR.log.push(name); }; });
-  r.onresult = e => { if (ASR.r !== r) return; if (ASR.log.at(-1) !== 'sonuç') ASR.log.push('sonuç'); ASR.owner?.result(e); };
-  r.onerror = e => { if (ASR.r !== r) return; ASR.log.push(`hata:${e.error}`); if (e.error !== 'aborted') ASR.owner?.error(e.error); };
-  r.onend = () => { if (ASR.r !== r) return; ASR.log.push('bitti'); clearTimeout(ASR.endT); ASR.state = 'idle'; const o = ASR.owner; ASR.owner = null; o?.end(); };
+  Object.entries(ASR_EVENTS).forEach(([ev, name]) => { r[`on${ev}`] = () => { if (ASR.r === r && ASR.log.length < 40) ASR.log.push(name); }; });
+  r.onresult = e => {
+    if (ASR.r !== r) return;
+    if (ASR.log.at(-1) !== 'sonuç') ASR.log.push('sonuç');
+    ASR.heard++; ASR.lastUse = Date.now();
+    ASR.words = [...e.results].map(x => x[0]?.transcript || '').join(' ').split(/\s+/).filter(Boolean);
+    ASR.owner?.update(ASR.words.slice(ASR.base));
+  };
+  r.onerror = e => { if (ASR.r !== r) return; ASR.log.push(`hata:${e.error}`); if (ASR_FATAL.includes(e.error)) ASR.owner?.error(e.error); };
+  r.onend = () => { if (ASR.r !== r) return; ASR.log.push('bitti'); asrEnded(); };
   return r;
 }
-// Dokunmanın içinde eşzamanlı çağrılmalı. 'ok' | 'busy' | 'fail' döner.
-function asrStart(owner, lang) {
-  if (ASR.state !== 'idle') {
-    // 'end' hiç gelmediyse nesne takılmıştır: bırakıp yenisini oluştur.
-    if (ASR.state === 'closing' && Date.now() - ASR.stopAt > ASR_STUCK_MS) { try { ASR.r.abort(); } catch {} ASR.r = null; ASR.state = 'idle'; ASR.owner = null; }
-    else { asrStop(); return 'busy'; }
+// Bir kontrolü başlatır. Dokunmanın içinde eşzamanlı çağrılmalı. 'ok' | 'busy' | 'fail' döner.
+function asrCheck(owner, lang) {
+  ASR.lastUse = Date.now();
+  if (ASR.state === 'listening' && ASR.lang === lang) {
+    const prev = ASR.owner; ASR.owner = null; prev?.cancel();
+    ASR.base = ASR.words.length; ASR.owner = owner; return 'ok';
   }
-  ASR.log = [];
-  const go = () => { const r = asrInstance(); r.lang = lang; r.interimResults = true; r.maxAlternatives = 5; r.continuous = false; r.start(); };
+  if (ASR.state === 'listening') { asrStop(); return 'busy'; }
+  if (ASR.state === 'closing') {
+    if (Date.now() - ASR.stopAt < ASR_STUCK_MS) return 'busy';
+    try { ASR.r.abort(); } catch {} ASR.r = null; asrEnded();
+  }
+  ASR.log = []; ASR.heard = 0; ASR.words = []; ASR.base = 0; ASR.lang = lang;
+  const go = () => { const r = asrInstance(); r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1; r.start(); };
   try { go(); }
   catch (e) {
     ASR.log.push(`start:${e?.name || 'hata'}`);
     try { ASR.r?.abort(); } catch {} ASR.r = null;
     try { go(); } catch (e2) { ASR.log.push(`start:${e2?.name || 'hata'}`); return 'fail'; }
   }
-  ASR.state = 'listening'; ASR.owner = owner;
+  ASR.starts++; ASR.state = 'listening'; ASR.owner = owner; micStoppers.add(asrStop);
+  clearInterval(ASR.idleI);
+  ASR.idleI = setInterval(() => { if (!ASR.owner && Date.now() - ASR.lastUse > ASR_IDLE_MS) asrStop(); }, 1000);
+  asrBar();
   return 'ok';
 }
 // Oturumu stop() ile kapatır; 'end' gelmezse mikrofonu bırakmak için abort() yedek.
 function asrStop() {
   if (ASR.state !== 'listening') return;
-  ASR.state = 'closing'; ASR.stopAt = Date.now();
+  ASR.state = 'closing'; ASR.stopAt = Date.now(); clearInterval(ASR.idleI); micStoppers.delete(asrStop);
   try { ASR.r.stop(); } catch {}
   clearTimeout(ASR.endT);
-  ASR.endT = setTimeout(() => { if (ASR.state !== 'closing') return; ASR.log.push('bitti (zorla)'); try { ASR.r.abort(); } catch {} ASR.state = 'idle'; const o = ASR.owner; ASR.owner = null; o?.end(); }, ASR_END_WAIT_MS);
+  ASR.endT = setTimeout(() => { if (ASR.state !== 'closing') return; ASR.log.push('bitti (zorla)'); try { ASR.r.abort(); } catch {} asrEnded(); }, ASR_END_WAIT_MS);
+  asrBar();
 }
-const ASR_ERRORS = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. Düğmeye bas ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'};
+// Yenile ve devam et: yenilemeden sonra Konuş adımı açılır ve telaffuz testine kaydırılır.
+function reloadToSpeak() { try { sessionStorage.setItem(ASR_REOPEN_KEY, '1'); } catch {} location.reload(); }
+const reloadBtn = () => el('button', {type:'button', className:'btn', textContent:'↻ Yenile ve devam et', onclick: reloadToSpeak});
 function checker(text, voice) {
   const btn = el('button', {type:'button', className:'btn secondary', textContent:'✓ Kontrol et'}), panel = el('div', {className:'check', role:'status'});
-  let cur = null; // bu satırın dinleyen oturumu (owner)
+  let cur = null; // bu satırın bekleyen kontrolü
   const ask = () => panel.replaceChildren(
-    el('p', {className:'small', textContent:'Otomatik kontrol, söylediğini yazıya çevirmek için sesini tarayıcının konuşma tanıma hizmetine gönderir (iPhone\'da Apple, Chrome\'da Google). Uygulama sesini saklamaz. Onaylıyor musun?'}),
+    el('p', {className:'small', textContent:'Otomatik kontrol, söylediğini yazıya çevirmek için sesini tarayıcının konuşma tanıma hizmetine gönderir (iPhone\'da Apple, Chrome\'da Google). Mikrofon, sen kapatana ya da 30 sn kullanılmayana kadar açık kalır. Uygulama sesini saklamaz. Onaylıyor musun?'}),
     el('div', {className:'row'}, el('button', {type:'button', className:'btn', textContent:'Onayla ve dene', onclick: () => { store.set(ASR_KEY, '1'); renderVoiceSettings(); listen(); }}),
       el('button', {type:'button', className:'btn secondary', textContent:'Vazgeç', onclick: () => panel.replaceChildren()})));
-  const showResult = alts => {
-    const best = alts.map(h => ({h, ...matchWords(text, h)})).sort((x, y) => y.score - x.score)[0];
+  const showResult = heard => {
+    const best = {h: heard, ...matchWords(text, heard)};
     const pct = Math.round(best.score * 100), missed = best.words.filter(x => !x.ok).map(x => x.w);
     const words = el('div', {className:'check-words'}, ...best.words.map(x => el('span', {className: x.ok ? 'word-ok' : 'word-miss', textContent:x.w})));
     words.setAttribute('aria-label', missed.length ? `Anlaşılmayan kelimeler: ${missed.join(', ')}` : 'Bütün kelimeler anlaşıldı');
     panel.replaceChildren(el('p', {className:`result ${pct >= 80 ? 'ok' : 'no'}`, textContent:`%${pct} · ${pct === 100 ? 'Mükemmel!' : pct >= 80 ? 'Çok iyi.' : pct >= 50 ? 'Fena değil; kırmızı kelimeleri dinleyip tekrar dene.' : 'Anlaşılmadı; ▶ ile dinle, yavaş ve net söyle.'}`}),
       words, el('p', {className:'small muted', textContent:`Anlaşılan: „${best.h}”`}));
   };
-  // Başarısızlıkta gösterilen tanılama satırı: sürüm ve tanıma olaylarının sırası.
-  const diag = msg => panel.replaceChildren(el('p', {textContent:msg}), el('p', {className:'small muted diag', textContent:`Tanılama ${APP_VERSION}: ${ASR.log.join(' → ') || '—'}`}));
+  // Başarısızlıkta: mesaj, gerekirse "Yenile ve devam et", ve tanılama satırı (sürüm + tanıma olayları).
+  const fail = (msg, reload) => panel.replaceChildren(el('p', {textContent:msg}), reload ? reloadBtn() : '', el('p', {className:'small muted diag', textContent:`Tanılama ${APP_VERSION}: ${ASR.log.join(' → ') || '—'} · oturum ${ASR.starts}`}));
   // Dokunmanın içinde eşzamanlı çalışır; burada await olmamalı.
   const listen = () => {
-    releaseMic(); stopAudio();
-    let alts = [], shown = false, quiet = null, maxT = null;
-    const finish = msg => {
-      if (shown) return; shown = true; clearTimeout(quiet); clearTimeout(maxT); micStoppers.delete(stopper);
-      if (ASR.owner === owner) asrStop();
+    stopAudio();
+    let heard = '', done = false, quiet = null, maxT = null;
+    const finish = kind => {
+      if (done) return; done = true; clearTimeout(quiet); clearTimeout(maxT);
+      if (ASR.owner === owner) ASR.owner = null;
       if (cur === owner) { cur = null; btn.textContent = '✓ Kontrol et'; }
-      if (msg === 'Durduruldu.') panel.textContent = msg; else if (!msg && alts.length) showResult(alts); else diag(msg || ASR_ERRORS['no-speech']);
+      if (kind === 'cancel') { panel.replaceChildren(); return; }
+      if (heard) { showResult(heard); return; }
+      if (ASR_FATAL.includes(kind)) { fail(ASR_ERRORS[kind]); return; }
+      // Hiç ses gelmedi: bu, sayfanın ilk oturumu değilse ve oturumdan hiç sonuç gelmediyse iPhone'un sessiz oturumudur.
+      const silentReopen = ASR.starts > 1 && ASR.heard === 0;
+      fail(silentReopen ? 'Mikrofondan ses gelmiyor. iPhone mikrofonu bu sayfada yeniden açamadı; yenileyince düzelir.' : ASR_ERRORS['no-speech'], silentReopen);
     };
     const owner = {
-      finish,
-      result: e => {
-        const res = [...e.results], allFinal = res.length && res.every(x => x.isFinal);
-        const joined = res.map(x => x[0]?.transcript || '').join(' ').replace(/\s+/g, ' ').trim();
-        alts = res.length === 1 ? [...res[0]].map(x => x.transcript.trim()).filter(Boolean) : (joined ? [joined] : []);
-        if (allFinal) return finish();
-        clearTimeout(quiet); quiet = setTimeout(() => finish(), ASR_QUIET_MS);
-      },
-      error: code => finish(alts.length ? '' : ASR_ERRORS[code] || 'Kontrol yapılamadı, tekrar dene.'),
-      end: () => finish()
+      finish: () => finish(),
+      update: words => { heard = words.join(' '); if (!heard) return; clearTimeout(quiet); quiet = setTimeout(() => finish(), ASR_QUIET_MS); },
+      error: code => finish(code), ended: () => finish(), cancel: () => finish('cancel')
     };
-    const stopper = () => finish('Durduruldu.');
-    let st; try { st = asrStart(owner, voice); } catch { panel.textContent = 'Bu tarayıcı konuşma tanımayı desteklemiyor.'; return; }
-    if (st === 'busy') { panel.textContent = 'Önceki dinleme kapanıyor; bir saniye sonra tekrar dokun.'; return; }
-    if (st === 'fail') { diag('Kontrol başlatılamadı; bir saniye sonra tekrar dokun.'); return; }
-    cur = owner; micStoppers.add(stopper);
-    maxT = setTimeout(() => finish(alts.length ? '' : 'Süre doldu. Düğmeye bas ve hemen söyle.'), REC_MAX_MS);
-    btn.textContent = '■ Dinliyor…'; panel.textContent = 'Dinliyorum… şimdi söyle.';
+    let st; try { st = asrCheck(owner, voice); } catch { panel.textContent = 'Bu tarayıcı konuşma tanımayı desteklemiyor.'; return; }
+    if (st === 'busy') { panel.textContent = 'Mikrofon kapanıyor; bir saniye sonra tekrar dokun.'; return; }
+    if (st === 'fail') { fail('Kontrol başlatılamadı; bir saniye sonra tekrar dokun. Olmazsa yenile.', true); return; }
+    cur = owner;
+    maxT = setTimeout(() => finish(), REC_MAX_MS);
+    btn.textContent = '■ Bitir'; panel.textContent = 'Dinliyorum… şimdi söyle.';
   };
-  // Dinlerken dokunulursa o ana kadar anlaşılanla sonuç gösterilir.
+  // Dinlerken dokunulursa o ana kadar anlaşılanla sonuç gösterilir; oturum açık kalır.
   btn.onclick = () => { if (cur) { cur.finish(); return; } store.get(ASR_KEY) === '1' ? listen() : ask(); };
   return {btn, panel};
 }
@@ -875,7 +905,11 @@ function registerAgentTools() {
     execute(input) { if (!input || !languages[input.language] || !tasks.includes(input.task) || typeof input.completed !== 'boolean') throw new Error('Geçersiz dil, görev veya durum.'); if (input.language !== active) switchLang(input.language); if (isDone(input.task) !== input.completed) setDone(input.task, input.completed); return {language:active, task:input.task, completed:input.completed, date:localDate()}; }});
 }
 
+// "Yenile ve devam et" sonrası: Konuş adımını aç ve telaffuz testine kaydır.
+let reopenSpeak = false; try { reopenSpeak = sessionStorage.getItem(ASR_REOPEN_KEY) === '1'; sessionStorage.removeItem(ASR_REOPEN_KEY); } catch {}
+if (reopenSpeak) { tab = 'bugun'; openStep = STEPS.findIndex(s => s.task === 'speak'); }
 switchTab(tab); render(); updateTimer(); registerAgentTools();
+if (reopenSpeak) $('#pronTest')?.scrollIntoView({block:'start'});
 
 if ('serviceWorker' in navigator) {
   let reloading = false;

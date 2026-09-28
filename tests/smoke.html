@@ -29,7 +29,9 @@
   const saved = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); saved[k] = localStorage.getItem(k); }
   const frame = document.getElementById('app');
   const FLAG = 'dil-atlasi-sifirlama-2026-09';
-  const load = async (keepFlag = true) => { if (keepFlag) localStorage.setItem(FLAG, '1'); frame.src = '../index.html?test=' + Date.now(); await new Promise(r => frame.onload = r); await wait(150); const w = frame.contentWindow; w.speechSynthesis.speak = u => w.setTimeout(() => u.onend && u.onend(), 5); w.speechSynthesis.cancel = () => {}; const st = w.setTimeout.bind(w); w.setTimeout = (f, ms) => st(f, Math.min(ms, 5)); w.confirm = () => true; w.cspViolations = []; w.document.addEventListener('securitypolicyviolation', e => w.cspViolations.push(e.violatedDirective + ' ' + e.blockedURI)); return w; };
+  const load = async (keepFlag = true) => { if (keepFlag) localStorage.setItem(FLAG, '1'); frame.src = '../index.html?test=' + Date.now(); await new Promise(r => frame.onload = r); await wait(150); return stub(frame.contentWindow); };
+  // Test ortamı: seslendirme anında biter, zamanlayıcılar en fazla 5 ms, onaylar evet, CSP ihlalleri toplanır.
+  const stub = w => { w.speechSynthesis.speak = u => w.setTimeout(() => u.onend && u.onend(), 5); w.speechSynthesis.cancel = () => {}; const st = w.setTimeout.bind(w); w.setTimeout = (f, ms) => st(f, Math.min(ms, 5)); w.confirm = () => true; w.cspViolations = []; w.document.addEventListener('securitypolicyviolation', e => w.cspViolations.push(e.violatedDirective + ' ' + e.blockedURI)); return w; };
 
   try {
     // 0) Tek seferlik sıfırlama: eski kayıtlar silinir ama yedeklenir, diğer ayarlar kalır
@@ -156,29 +158,26 @@
     let stopped = 0, deny = true;
     w.navigator.mediaDevices.getUserMedia = async () => { if (deny) throw Object.assign(new Error('x'), {name:'NotAllowedError'}); return {getTracks: () => [{stop() { stopped++; }}]}; };
     w.MediaRecorder = class { constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; } start() { this.state = 'recording'; } stop() { this.state = 'inactive'; this.ondataavailable({data:new w.Blob(['x'], {type:'audio/webm'})}); this.onstop(); } };
-    let heardText = '';
-    // iPhone Safari modeli (gerçek cihazdaki hatalardan çıkarıldı):
-    // - start() yalnızca dokunma (click) olayının içinde, beklemeden çağrılırsa dinler; aksi hâlde mikrofon açılır ama ses gelmez → 'no-speech'.
-    // - Önceki oturum 'end' göndermeden başlatılan yeni oturum da ses almaz → 'no-speech'.
-    // - Yalnızca ara sonuç gelir (isFinal yok); oturum kendiliğinden kapanmaz.
-    // - stop() oturumu kapatır ve 'end' gönderir; abort() mikrofonu bırakır ama 'end' göndermez, oturum açık sayılır.
-    // - Sayfada oluşturulan ilk tanıma nesnesinden sonrakiler ses almaz (her kontrolde yeni nesne → ikinci kontrol "Ses duyulmadı").
-    // - Aynı nesne açıkken start() InvalidStateError fırlatır.
-    let micOpen = 0, live = 0, deadStarts = 0, instances = 0;
+    // iPhone Safari modeli (gerçek cihaz tanılamasından, v18: "başladı → mikrofon" ve sonra hiçbir şey):
+    // - Sayfada yalnızca ilk start() ses alır; sonraki her oturumda mikrofon açılır ama ses gelmez (sonuç/hata/end yok).
+    // - start() dokunma (click) dışında çağrılırsa da ses gelmez.
+    // - Sürekli (continuous) oturum açık kalır; söylenenler tek bir büyüyen ara sonuçta birikir (isFinal yok).
+    // - stop() 'end' gönderir; abort() göndermez. Açık nesnede start() InvalidStateError fırlatır.
+    let micOpen = 0, pageStarts = 0, deadStarts = 0, instances = 0, liveRec = null;
     w.SpeechRecognition = w.webkitSpeechRecognition = class {
       constructor() { this.n = ++instances; }
       start() {
         if (this.open) throw new w.DOMException('already started', 'InvalidStateError');
-        const inTap = w.event?.type === 'click', dead = !inTap || live > 0 || this.n > 1;
-        live++; micOpen++; this.open = true; this.live = true;
+        pageStarts++; const inTap = w.event?.type === 'click';
+        this.alive = inTap && pageStarts === 1; if (!this.alive) deadStarts++;
+        micOpen++; this.open = true; this.text = ''; liveRec = this;
         this.onstart?.(); this.onaudiostart?.();
-        if (dead) { deadStarts++; w.setTimeout(() => { if (!this.open) return; this.onerror?.({error:'no-speech'}); this._close(); }, 5); return; }
-        const t = heardText; w.setTimeout(() => this.open && this.onresult({resultIndex:0, results:[Object.assign([{transcript:t}], {isFinal:false})]}), 5);
       }
-      _close() { if (this.open) { this.open = false; micOpen--; } if (this.live) { this.live = false; live--; this.onend?.(); } }
-      stop() { w.setTimeout(() => this._close(), 5); }
-      abort() { if (this.open) { this.open = false; micOpen--; } }
+      stop() { w.setTimeout(() => { if (!this.open) return; this.open = false; micOpen--; if (liveRec === this) liveRec = null; this.onend?.(); }, 5); }
+      abort() { if (this.open) { this.open = false; micOpen--; if (liveRec === this) liveRec = null; } }
     };
+    // Kullanıcı konuşur: açık ve ses alan oturuma eklenir.
+    const say = t => { const r = liveRec; if (!r || !r.alive) return; r.text = (r.text + ' ' + t).trim(); r.onresult({resultIndex:0, results:[Object.assign([{transcript:r.text}], {isFinal:false})]}); };
     const hk = $$('.step-head'); hk[3].click(); if ($$('.step-head')[3].getAttribute('aria-expanded') !== 'true') $$('.step-head')[3].click();
     const rows = $$('.step.open .pron-item');
     check(rows.length === 13 && rows[0].querySelector('strong').textContent === w.LESSONS.fr[0].w[0][0] && rows[0].textContent.includes(w.LESSONS.fr[0].w[0][1]), 'Telaffuz testi: 8 kelime + 5 cümle, Türkçe anlam yazılı', `satır=${rows.length}`);
@@ -193,34 +192,39 @@
     check(stopped === 2 && tools.querySelectorAll('.rec audio').length === 1 && tools.querySelector('.rec audio').src !== aud.src, 'Yeni kayıt eskisinin yerini aldı');
     // Otomatik kontrol: önce açık onay, sonra kelime kelime sonuç
     const target8 = w.LESSONS.fr[0].p[0][0], chk = [...tools.querySelectorAll('.btn')].find(b => b.textContent.includes('Kontrol'));
+    const res8 = () => tools.querySelector('.check').textContent;
     chk.click(); await wait(20);
-    check(/Onaylıyor musun/.test(tools.querySelector('.check').textContent) && localStorage.getItem('dil-atlasi-tanima') === null, 'Otomatik kontrol önce onay istiyor');
-    heardText = target8.toLowerCase().replace(/[.,!?]/g, '');
-    [...tools.querySelectorAll('.check .btn')].find(b => b.textContent.startsWith('Onayla')).click(); await wait(40);
-    check(localStorage.getItem('dil-atlasi-tanima') === '1' && /%100/.test(tools.querySelector('.check').textContent), 'Doğru söylenince %100', tools.querySelector('.check').textContent);
-    check(micOpen === 0 && chk.textContent === '✓ Kontrol et', 'Sonuçtan sonra konuşma tanıma kapandı (mikrofon açık kalmadı)', `açık=${micOpen}`);
-    const words8 = target8.split(/\s+/).filter(x => /\p{L}/u.test(x)); heardText = words8.slice(0, -1).join(' ') + ' xyz';
-    chk.click(); await wait(60);
-    check(micOpen === 0 && live === 0, 'İkinci kontrolden sonra da mikrofon kapandı', `açık=${micOpen}`);
-    check(tools.querySelectorAll('.check .word-miss').length === 1 && tools.querySelectorAll('.check .word-ok').length === words8.length - 1, 'Eksik kelime kırmızı işaretlendi', tools.querySelector('.check').textContent);
-    heardText = target8; chk.click(); await wait(60);
-    check(/%100/.test(tools.querySelector('.check').textContent), 'Üçüncü kontrol de sonuç verdi (art arda çalışıyor)', tools.querySelector('.check').textContent);
-    heardText = 'good'; chk.click(); await wait(2); chk.click(); await wait(60);
-    check(!/Dinliyorum/.test(tools.querySelector('.check').textContent) && chk.textContent === '✓ Kontrol et' && micOpen === 0, 'Dinlerken dokununca o ana kadarki sonuç gösterildi ve kapandı', tools.querySelector('.check').textContent);
+    check(/Onaylıyor musun/.test(res8()) && localStorage.getItem('dil-atlasi-tanima') === null, 'Otomatik kontrol önce onay istiyor');
+    [...tools.querySelectorAll('.check .btn')].find(b => b.textContent.startsWith('Onayla')).click(); say(target8.toLowerCase().replace(/[.,!?]/g, '')); await wait(40);
+    check(localStorage.getItem('dil-atlasi-tanima') === '1' && /%100/.test(res8()), 'Doğru söylenince %100', res8());
+    check(micOpen === 1 && !$('#asrBar').hidden && /Mikrofon açık/.test($('#asrBar').textContent), 'Oturum açık kalıyor ve "Mikrofon açık · Kapat" çubuğu görünüyor');
+    const words8 = target8.split(/\s+/).filter(x => /\p{L}/u.test(x));
+    chk.click(); say(words8.slice(0, -1).join(' ') + ' xyz'); await wait(40);
+    check(tools.querySelectorAll('.check .word-miss').length === 1 && tools.querySelectorAll('.check .word-ok').length === words8.length - 1, 'İkinci kontrol: eksik kelime kırmızı (aynı oturum, önceki söz karışmadı)', res8());
+    chk.click(); say(target8); await wait(40);
+    check(/%100/.test(res8()), 'Üçüncü kontrol de sonuç verdi', res8());
+    chk.click(); await wait(2); chk.click(); await wait(20);
+    check(chk.textContent === '✓ Kontrol et' && /Ses duyulmadı/.test(res8()) && micOpen === 1, 'Söylemeden Bitir: "Ses duyulmadı", oturum açık kalır', res8());
     check(![...tools.querySelectorAll('.btn')].some(b => b.textContent === '▶ Doğrusu'), '"▶ Doğrusu" düğmesi kaldırıldı');
-    // Kullanıcının senaryosu: yanlış, sonra doğru, art arda 5 kez; her biri sonuç vermeli, hiçbir oturum dokunma dışında başlamamalı
+    // Kullanıcının senaryosu: yanlış, sonra doğru, art arda 5 kez
     const seq = [];
-    for (let k = 0; k < 5; k++) { heardText = k % 2 ? target8 : 'how are you'; chk.click(); await wait(60); seq.push(tools.querySelector('.check .result')?.textContent.match(/%\d+/)?.[0] || tools.querySelector('.check').textContent); }
-    check(seq.join(' ') === '%0 %100 %0 %100 %0' || (seq.every(x => /^%\d+$/.test(x)) && seq[1] === '%100' && seq[3] === '%100'), 'Art arda 5 kontrol: yanlış/doğru her seferinde sonuç verdi', seq.join(' '));
+    for (let k = 0; k < 5; k++) { chk.click(); say(k % 2 ? target8 : 'how are you'); await wait(40); seq.push(tools.querySelector('.check .result')?.textContent.match(/%\d+/)?.[0] || res8()); }
+    check(seq.join(' ') === '%0 %100 %0 %100 %0', 'Art arda 5 kontrol: yanlış/doğru her seferinde doğru sonuç', seq.join(' '));
     const tools0 = rows[0].querySelector('.pron-tools'), chk0 = [...tools0.querySelectorAll('.btn')].find(b => b.textContent.includes('Kontrol'));
-    heardText = w.LESSONS.fr[0].w[0][0]; chk0.click(); await wait(60);
-    check(/%100/.test(tools0.querySelector('.check').textContent), 'Başka satırda hemen ardından kontrol de sonuç verdi', tools0.querySelector('.check').textContent);
-    // Önceki oturum henüz kapanmadan dokunulursa ölü oturum açılmaz, "tekrar dokun" denir; biraz sonra çalışır
-    heardText = w.LESSONS.fr[0].w[0][0]; chk0.click(); await wait(1); chk0.click(); await wait(1); chk0.click();
-    check(/tekrar dokun/.test(tools0.querySelector('.check').textContent), 'Kapanmakta olan oturum varken yeni oturum açılmadı', tools0.querySelector('.check').textContent);
-    await wait(60); chk0.click(); await wait(60);
-    check(/%100/.test(tools0.querySelector('.check').textContent), 'Biraz sonra tekrar dokununca çalıştı', tools0.querySelector('.check').textContent);
-    check(deadStarts === 0 && micOpen === 0 && live === 0 && instances === 1, 'Hiçbir tanıma oturumu dokunma dışında ya da üst üste başlamadı; hepsi kapandı', `ölü=${deadStarts} açık=${micOpen} canlı=${live} nesne=${instances}`);
+    chk0.click(); say(w.LESSONS.fr[0].w[0][0]); await wait(40);
+    check(/%100/.test(tools0.querySelector('.check').textContent), 'Başka satırda kontrol aynı oturumla sonuç verdi', tools0.querySelector('.check').textContent);
+    check(deadStarts === 0 && pageStarts === 1 && instances === 1, 'Bütün kontroller tek oturumla yapıldı (iPhone yalnızca ilkini dinliyor)', `başlatma=${pageStarts} ölü=${deadStarts} nesne=${instances}`);
+    // Kapat: mikrofon kapanır, çubuk gizlenir
+    $('#asrBar .btn').click(); await wait(20);
+    check(micOpen === 0 && $('#asrBar').hidden, 'Kapat ile mikrofon kapandı');
+    // Yeniden açılan oturum iPhone'da sessiz kalır → "Yenile ve devam et" önerilir; yenileyince Konuş adımı açılır ve çalışır
+    chk0.click(); say('bonjour'); await wait(40);
+    const rb = [...tools0.querySelectorAll('.check .btn')].find(b => b.textContent.includes('Yenile'));
+    check(!!rb && /Tanılama v\d+: başladı → mikrofon/.test(tools0.querySelector('.check').textContent), 'Sessiz yeniden açılışta Yenile önerisi ve tanılama satırı', tools0.querySelector('.check').textContent);
+    w.__eskiSayfa = true; const reloaded = new Promise(r => frame.onload = r); rb.click(); await reloaded; await wait(150);
+    w = stub(frame.contentWindow); check(!w.__eskiSayfa, 'Yenile ve devam et sayfayı yeniledi');
+    $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    check($('.step.open .step-title')?.textContent === 'Konuş' && !!$('#pronTest'), 'Yenileme sonrası Konuş adımı açık, telaffuz testi hazır', $('.step.open .step-title')?.textContent);
     check(w.matchWords("J'ai un chat.", 'jai un chat').score < 1 && w.matchWords('Ça va très bien', 'ca va tres bien').score === 1, 'Karşılaştırma aksan ve noktalamayı yok sayıyor');
     check(!Object.keys(localStorage).some(k => /kayit|rec|audio/i.test(k)), 'Ses kaydı saklanmadı');
 
