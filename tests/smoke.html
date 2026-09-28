@@ -162,11 +162,16 @@
     // - Önceki oturum 'end' göndermeden başlatılan yeni oturum da ses almaz → 'no-speech'.
     // - Yalnızca ara sonuç gelir (isFinal yok); oturum kendiliğinden kapanmaz.
     // - stop() oturumu kapatır ve 'end' gönderir; abort() mikrofonu bırakır ama 'end' göndermez, oturum açık sayılır.
-    let micOpen = 0, live = 0, deadStarts = 0;
+    // - Sayfada oluşturulan ilk tanıma nesnesinden sonrakiler ses almaz (her kontrolde yeni nesne → ikinci kontrol "Ses duyulmadı").
+    // - Aynı nesne açıkken start() InvalidStateError fırlatır.
+    let micOpen = 0, live = 0, deadStarts = 0, instances = 0;
     w.SpeechRecognition = w.webkitSpeechRecognition = class {
+      constructor() { this.n = ++instances; }
       start() {
-        const inTap = w.event?.type === 'click', dead = !inTap || live > 0;
+        if (this.open) throw new w.DOMException('already started', 'InvalidStateError');
+        const inTap = w.event?.type === 'click', dead = !inTap || live > 0 || this.n > 1;
         live++; micOpen++; this.open = true; this.live = true;
+        this.onstart?.(); this.onaudiostart?.();
         if (dead) { deadStarts++; w.setTimeout(() => { if (!this.open) return; this.onerror?.({error:'no-speech'}); this._close(); }, 5); return; }
         const t = heardText; w.setTimeout(() => this.open && this.onresult({resultIndex:0, results:[Object.assign([{transcript:t}], {isFinal:false})]}), 5);
       }
@@ -215,7 +220,7 @@
     check(/tekrar dokun/.test(tools0.querySelector('.check').textContent), 'Kapanmakta olan oturum varken yeni oturum açılmadı', tools0.querySelector('.check').textContent);
     await wait(60); chk0.click(); await wait(60);
     check(/%100/.test(tools0.querySelector('.check').textContent), 'Biraz sonra tekrar dokununca çalıştı', tools0.querySelector('.check').textContent);
-    check(deadStarts === 0 && micOpen === 0 && live === 0, 'Hiçbir tanıma oturumu dokunma dışında ya da üst üste başlamadı; hepsi kapandı', `ölü=${deadStarts} açık=${micOpen} canlı=${live}`);
+    check(deadStarts === 0 && micOpen === 0 && live === 0 && instances === 1, 'Hiçbir tanıma oturumu dokunma dışında ya da üst üste başlamadı; hepsi kapandı', `ölü=${deadStarts} açık=${micOpen} canlı=${live} nesne=${instances}`);
     check(w.matchWords("J'ai un chat.", 'jai un chat').score < 1 && w.matchWords('Ça va très bien', 'ca va tres bien').score === 1, 'Karşılaştırma aksan ve noktalamayı yok sayıyor');
     check(!Object.keys(localStorage).some(k => /kayit|rec|audio/i.test(k)), 'Ses kaydı saklanmadı');
 
@@ -323,6 +328,7 @@
     check(w.document.documentElement.scrollWidth <= w.innerWidth, 'Mobil genişlikte yatay taşma yok');
     check(w.cspViolations.length === 0, 'CSP ihlali yok', w.cspViolations.join(', '));
     check(!!w.document.querySelector('meta[http-equiv="Content-Security-Policy"]'), 'CSP etiketi var');
+    check(/^Sürüm v\d+$/.test(w.document.getElementById('appVersion').textContent), 'Sürüm İlerleme sekmesinde görünüyor', w.document.getElementById('appVersion').textContent);
   } catch (e) {
     check(false, 'Test beklenmedik şekilde durdu', e.message);
   } finally {
