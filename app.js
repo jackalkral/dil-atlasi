@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v29';
+const APP_VERSION = 'v30';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
@@ -883,8 +883,22 @@ $('#voiceTest').onclick = () => speak(todayLesson().p[0][0]);
 document.querySelectorAll('input[name=rate]').forEach(i => { i.onchange = () => { store.set(RATE_KEY, i.value); speak(todayLesson().p[0][0]); }; });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener?.('voiceschanged', renderVoiceSettings);
 
+// ---------- Tema ----------
+// dil-atlasi-tema: 'light' | 'dark', yoksa sistem. theme.js açılışta uygular; burada seçim değişince uygulanır.
+const THEME_KEY = 'dil-atlasi-tema';
+const themePref = () => ['light', 'dark'].includes(store.get(THEME_KEY)) ? store.get(THEME_KEY) : '';
+function applyTheme() {
+  const t = themePref(), root = document.documentElement;
+  t ? root.setAttribute('data-theme', t) : root.removeAttribute('data-theme');
+  const light = t === 'light' || (!t && matchMedia('(prefers-color-scheme: light)').matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#f5f6f8' : '#0a0d13');
+}
+document.querySelectorAll('#themeOpts input').forEach(i => { i.onchange = () => { i.value ? store.set(THEME_KEY, i.value) : store.del(THEME_KEY); applyTheme(); }; });
+matchMedia('(prefers-color-scheme: light)').addEventListener?.('change', applyTheme);
+
 function render() {
-  document.documentElement.style.setProperty('--lang', languages[active].color);
+  document.documentElement.style.setProperty('--lang-base', languages[active].color);
+  document.querySelectorAll('#themeOpts input').forEach(i => { i.checked = i.value === themePref(); });
   renderLangs(); renderToday();
   renderRes('#audioRes', window.MEDIA?.[active]?.audio); renderRes('#videoRes', window.MEDIA?.[active]?.video);
   if (!drill.playing) { $('#drillInfo').textContent = `Bugün: ${drillItems().length} ifade · yaklaşık ${Math.ceil(drillItems().length * 9 / 60)} dakika. Ekranın açık kalması gerekir.`; }

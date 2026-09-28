@@ -428,6 +428,17 @@
     check(/İtalyanca erkek ses yok/.test(toastText()) && w.voiceFor('it-IT').name === 'Alice', 'Erkek ses yoksa söylenir ve olan ses kullanılır', toastText());
     $('#genderToggle button[data-g="m"]').click(); $$('.lang-chip')[0].click(); localStorage.removeItem('dil-atlasi-voices');
 
+    // 9c) Tema: Açık / Koyu / Sistem; seçim kaydedilir, yenilemede açılışta uygulanır
+    const bgOf = () => w.getComputedStyle(w.document.body).backgroundColor;
+    $('#themeOpts input[value="light"]').click();
+    check(localStorage.getItem('dil-atlasi-tema') === 'light' && w.document.documentElement.dataset.theme === 'light' && /245, 246, 248/.test(bgOf()), 'Açık tema seçildi', bgOf());
+    w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    check(w.document.documentElement.dataset.theme === 'light' && $('#themeOpts input[value="light"]').checked && $('meta[name="theme-color"]').content === '#f5f6f8', 'Açık tema yenilemede korundu');
+    $('#themeOpts input[value="dark"]').click();
+    check(w.document.documentElement.dataset.theme === 'dark' && /10, 13, 19/.test(bgOf()), 'Koyu tema seçildi', bgOf());
+    $('#themeOpts input[value=""]').click();
+    check(!localStorage.getItem('dil-atlasi-tema') && !w.document.documentElement.dataset.theme, 'Sistem temasına dönüldü');
+
     // 10) Mobil ve güvenlik
     check(w.document.documentElement.scrollWidth <= w.innerWidth, 'Mobil genişlikte yatay taşma yok');
     check(w.cspViolations.length === 0, 'CSP ihlali yok', w.cspViolations.join(', '));

@@ -64,6 +64,7 @@ Tarayıcı testi: yerel sunucu açıkken `http://localhost:4173/tests/smoke.html
 Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 
 - Aktif dil: `dil-atlasi-active` · Açık sekme: `dil-atlasi-tab`
+- Tema: `dil-atlasi-tema` (`light`, `dark`; yoksa sistem)
 - Aşamalar: `da:{görev}:{dil}:{YYYY-MM-DD}` — görevler `review`, `lesson`, `shadow`, `speak`; diller `en`, `fr`, `it`, `de`
 - Sayaç süresi: `dil-atlasi-timer` (`25`, `45`, `60`)
 - Ses seçimi: `dil-atlasi-voices` (`{ "en": voiceURI, "tr": voiceURI }`), hız: `dil-atlasi-rate` (`0.8`, `1`, `1.15`)
