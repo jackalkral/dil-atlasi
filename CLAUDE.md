@@ -19,7 +19,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - Dört dil de sıfırdan (A0). Kullanıcı dili kendisi seçer; uygulama sıralama dayatmaz.
 - Dört dilde aynı 30 konu aynı sırayla (ortak müfredat). Her ders: t başlık, n Türkçe ipucu, w 8 × [kelime, Türkçe, okunuş], p 5 × [cümle, Türkçe].
 - Okunuş kuralları: Türkçe harfler, heceler tireyle, vurgulu hece BÜYÜK; Fransızca genizden ünlü = ünlü + ñ; İtalyanca çift ünsüz yazılır.
-- Ses: `utter()` her seslendirmede `voiceFor()` ile sesi seçer (kullanıcı seçimi `dil-atlasi-voices`, yoksa en yüksek `voiceScore`). Hız çarpanı `dil-atlasi-rate`. Doğal ses için kalıcı çözüm cihaza Premium/Enhanced ses indirmek ya da derleme sırasında üretilmiş ses dosyaları (lisans ve boyut değerlendirilmeli).
+- Ses: `utter()` her seslendirmede `voiceFor()` ile sesi seçer: elle seçilen ses (`dil-atlasi-voices`, cinsiyet tercihine aykırı değilse) → tercih edilen cinsiyetteki en yüksek `voiceScore` → en yüksek `voiceScore`. `voiceScore` dilin kendi bölgesini (fr-FR, it-IT, de-DE, en-US) +7 ile öne alır (doğal aksan), Premium/Enhanced/Natural +6. Kadın/erkek tercihi `dil-atlasi-ses-cinsiyet` ('f'|'m', yoksa otomatik) sayfanın üstündeki ♀ ♂ düğmeleriyle seçilir (dört dil için ortak; seçili düğmeye yeniden dokunmak otomatiğe döner); dokununca bugünün ilk kelimesi okunur ve seçilen ses bildirimle (`#toast`) söylenir, o cinsiyette ses yoksa söylenir. Tarayıcılar cinsiyet bildirmez: `voiceGender()` addaki Female/Male ya da bilinen Apple/Google/Microsoft ses adlarından çıkarır (bilinmeyen ''). Hız çarpanı `dil-atlasi-rate`. Doğal ses için kalıcı çözüm cihaza Premium/Enhanced ses indirmek ya da derleme sırasında üretilmiş ses dosyaları (lisans ve boyut değerlendirilmeli).
 - Hata defteri `dil-atlasi-notlar` (`{v:1, items:{"fr:n:xxxx": {t, tr, d}}}`): kullanıcı girdisi, yalnızca `textContent` ile gösterilir, 200 karakter sınırı, günde en fazla 2; ertesi günden itibaren tekrar kartı olur.
 - Ders adımında "Kendini sına": aynı gün hatırlama testi (kayıt tutmaz).
 - Cümle kurma başa sarmaz: her cümlenin ilk denemesi sayılır, son cümlede "Bitir" doğru/yanlış/atlanan özetini ve kaçırılan cümleleri gösterir; "Baştan" ilk cümleye döner ve sayımı sıfırlar.
@@ -97,7 +97,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 
 ## Kabul testi
 
-Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (114 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (122 kontrol). Her değişiklikten sonra ikisi de geçmeli.
 
 
 - Dört dil arasında geçiş yapılabiliyor.

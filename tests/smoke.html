@@ -348,6 +348,27 @@
     check(!Object.keys(JSON.parse(localStorage.getItem('dil-atlasi-srs')).cards).some(k => k.startsWith('en:')), 'Sıfırlama o dilin kartlarını sildi');
     check($('#lessonPill').textContent === 'Ders 1/30', 'Sıfırlamadan sonra Ders 1');
 
+    // 9b) Kadın/erkek ses: üstteki ♀ ♂ düğmeleri; doğal aksan (dilin kendi bölgesi) öne alınır
+    const V = (name, lang) => ({name, lang, voiceURI: name, default: false});
+    let voices = [V('Thomas', 'fr-FR'), V('Amélie', 'fr-CA'), V('Audrey (Enhanced)', 'fr-FR'), V('Google français', 'fr-FR'), V('Samantha', 'en-US'), V('Daniel', 'en-GB'), V('Alice', 'it-IT')];
+    w.speechSynthesis.getVoices = () => voices;
+    const toastText = () => $('#toast').textContent, pressed = g => $(`#genderToggle button[data-g="${g}"]`).getAttribute('aria-pressed');
+    check(w.voiceFor('fr-FR').name === 'Audrey (Enhanced)', 'Otomatik: en doğal Fransa sesi', w.voiceFor('fr-FR').name);
+    $('#genderToggle button[data-g="m"]').click();
+    check(localStorage.getItem('dil-atlasi-ses-cinsiyet') === 'm' && pressed('m') === 'true' && w.voiceFor('fr-FR').name === 'Thomas' && w.voiceFor('en-US').name === 'Daniel', '♂: Fransızca Thomas, İngilizce Daniel', `${w.voiceFor('fr-FR').name}, ${w.voiceFor('en-US').name}`);
+    check(/Erkek ses: Daniel/.test(toastText()), 'Seçilen ses bildirimi gösterildi', toastText());
+    $('#genderToggle button[data-g="f"]').click();
+    check(pressed('f') === 'true' && pressed('m') === 'false' && w.voiceFor('fr-FR').name === 'Audrey (Enhanced)' && w.voiceFor('en-US').name === 'Samantha', '♀: Fransızca Audrey, İngilizce Samantha');
+    voices = voices.filter(v => !/Audrey|Google/.test(v.name));
+    check(w.voiceFor('fr-FR').name === 'Amélie', '♀: Fransa kadın sesi yoksa Kanada kadın sesi', w.voiceFor('fr-FR').name);
+    $('#genderToggle button[data-g="f"]').click();
+    check(!localStorage.getItem('dil-atlasi-ses-cinsiyet') && w.voiceFor('fr-FR').name === 'Thomas', 'Seçili düğmeye yeniden dokununca otomatik (aksan önce: Thomas fr-FR)', w.voiceFor('fr-FR').name);
+    localStorage.setItem('dil-atlasi-voices', JSON.stringify({fr: 'Thomas'})); $('#genderToggle button[data-g="f"]').click();
+    check(w.voiceFor('fr-FR').name === 'Amélie', 'Elle seçilen erkek ses, kadın tercihiyle çakışınca kadın ses kullanılır');
+    voices = [V('Alice', 'it-IT')]; $$('.lang-chip')[2].click(); $('#genderToggle button[data-g="m"]').click();
+    check(/İtalyanca erkek ses yok/.test(toastText()) && w.voiceFor('it-IT').name === 'Alice', 'Erkek ses yoksa söylenir ve olan ses kullanılır', toastText());
+    $('#genderToggle button[data-g="m"]').click(); $$('.lang-chip')[0].click(); localStorage.removeItem('dil-atlasi-voices');
+
     // 10) Mobil ve güvenlik
     check(w.document.documentElement.scrollWidth <= w.innerWidth, 'Mobil genişlikte yatay taşma yok');
     check(w.cspViolations.length === 0, 'CSP ihlali yok', w.cspViolations.join(', '));
