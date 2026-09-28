@@ -170,14 +170,23 @@
         if (this.open) throw new w.DOMException('already started', 'InvalidStateError');
         pageStarts++; const inTap = w.event?.type === 'click';
         this.alive = inTap && pageStarts === 1; if (!this.alive) deadStarts++;
-        micOpen++; this.open = true; this.text = ''; liveRec = this;
+        micOpen++; this.open = true; this.list = []; liveRec = this;
         this.onstart?.(); this.onaudiostart?.();
       }
       stop() { w.setTimeout(() => { if (!this.open) return; this.open = false; micOpen--; if (liveRec === this) liveRec = null; this.onend?.(); }, 5); }
       abort() { if (this.open) { this.open = false; micOpen--; if (liveRec === this) liveRec = null; } }
     };
     // Kullanıcı konuşur: açık ve ses alan oturuma eklenir.
-    const say = t => { const r = liveRec; if (!r || !r.alive) return; r.text = (r.text + ' ' + t).trim(); r.onresult({resultIndex:0, results:[Object.assign([{transcript:r.text}], {isFinal:false})]}); };
+    // iPhone yeni konuşmayı üç biçimde bildirebiliyor: 'ekle' (aynı metne ekler), 'yeni' (duraklamadan sonra metni yalnızca yeni cümleyle
+    // baştan yazar), 'sira' (yeni bir sonuç sırası açar). Varsayılan 'ekle'.
+    let sayMode = 'ekle';
+    const say = t => {
+      const r = liveRec; if (!r || !r.alive) return;
+      r.list ||= [];
+      if (sayMode === 'sira' || !r.list.length) r.list.push(t);
+      else r.list[r.list.length - 1] = sayMode === 'yeni' ? t : (r.list[r.list.length - 1] + ' ' + t).trim();
+      r.onresult({resultIndex:0, results:r.list.map(x => Object.assign([{transcript:x}], {isFinal:false}))});
+    };
     const hk = $$('.step-head'); hk[3].click(); if ($$('.step-head')[3].getAttribute('aria-expanded') !== 'true') $$('.step-head')[3].click();
     const rows = $$('.step.open .pron-item');
     check(rows.length === 13 && rows[0].querySelector('strong').textContent === w.LESSONS.fr[0].w[0][0] && rows[0].textContent.includes(w.LESSONS.fr[0].w[0][1]), 'Telaffuz testi: 8 kelime + 5 cümle, Türkçe anlam yazılı', `satır=${rows.length}`);
@@ -213,6 +222,17 @@
     const tools0 = rows[0].querySelector('.pron-tools'), chk0 = [...tools0.querySelectorAll('.btn')].find(b => b.textContent.includes('Kontrol'));
     chk0.click(); say(w.LESSONS.fr[0].w[0][0]); await wait(40);
     check(/%100/.test(tools0.querySelector('.check').textContent), 'Başka satırda kontrol aynı oturumla sonuç verdi', tools0.querySelector('.check').textContent);
+    // Kullanıcının bildirdiği sıra: "how are you" → "hello" → "hello" → "thank you"; üç bildirim biçiminde de her biri doğru değerlendirilmeli
+    const rowOf = word => rows.find(r => r.querySelector('strong').textContent.toLowerCase() === word);
+    for (const mode of ['ekle', 'yeni', 'sira']) {
+      sayMode = mode; const got = [];
+      for (const [word, spoken] of [['salut', 'ça va'], ['salut', 'salut'], ['salut', 'salut'], ['merci', 'merci']]) {
+        const row = rowOf(word) || rows[0], c = [...row.querySelectorAll('.pron-tools .btn')].find(b => b.textContent.includes('Kontrol'));
+        c.click(); say(spoken); await wait(40); got.push(row.querySelector('.check .result')?.textContent.match(/%\d+/)?.[0] || row.querySelector('.check').textContent.slice(0, 40));
+      }
+      check(got.join(' ') === '%0 %100 %100 %100', `Kullanıcının sırası (${mode}): yanlış, doğru, doğru, başka kelime doğru`, got.join(' '));
+    }
+    sayMode = 'ekle';
     check(deadStarts === 0 && pageStarts === 1 && instances === 1, 'Bütün kontroller tek oturumla yapıldı (iPhone yalnızca ilkini dinliyor)', `başlatma=${pageStarts} ölü=${deadStarts} nesne=${instances}`);
     // Kapat: mikrofon kapanır, çubuk gizlenir
     $('#asrBar .btn').click(); await wait(20);

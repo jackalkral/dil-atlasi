@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v19';
+const APP_VERSION = 'v20';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
@@ -535,11 +535,13 @@ function matchWords(target, heard) {
 // sayfada ilk açılan tanıma oturumu çalışıyor; sonraki her oturumda mikrofon açılıyor ama ses gelmiyor. Ayrıca start() yalnızca dokunmanın
 // içinde, beklemeden çağrılırsa dinler; son (isFinal) sonuç çoğu zaman gelmez.
 // Bu yüzden: ilk ✓ Kontrol et dokunuşu tek bir sürekli oturum (continuous) açar ve sonraki bütün kontroller aynı oturumu kullanır.
-// Her kontrol, dokunduğu andaki kelime sayısını başlangıç (base) alır; ondan sonra söylenenler ASR_QUIET_MS sessizlikten sonra değerlendirilir.
+// Her kontrol, dokunduğu andaki sonuç listesinin kopyasını (snap) alır; sonra gelen yeni sonuçlar ve değişen sonuçların yeni kısmı
+// (asrDelta) ASR_QUIET_MS sessizlikten sonra değerlendirilir. iPhone duraklamadan sonra metne eklemek yerine yeni bir metin başlatabildiği için
+// kelime sayısına göre kesmek yanlıştı ("how are you" sonrası "hello" hiç görülmüyordu).
 // Oturum açıkken "Mikrofon açık · Kapat" çubuğu görünür; ASR_IDLE_MS kullanılmazsa, sekme değişince ya da uygulama arka plana geçince kapanır.
 // Kapandıktan sonra yeniden açılan oturum sessiz kalırsa sayfayı yenileme önerilir (yenileme iPhone'da mikrofonu sıfırlar; Konuş adımı yeniden açılır).
 const ASR_QUIET_MS = 1200, ASR_IDLE_MS = 30000, ASR_END_WAIT_MS = 1500, ASR_STUCK_MS = 3000, ASR_REOPEN_KEY = 'dil-atlasi-konus-ac';
-const ASR = {r: null, state: 'idle', owner: null, log: [], starts: 0, heard: 0, words: [], base: 0, lang: '', stopAt: 0, lastUse: 0, idleI: null, endT: null};
+const ASR = {r: null, state: 'idle', owner: null, log: [], starts: 0, heard: 0, results: [], snap: [], lang: '', stopAt: 0, lastUse: 0, idleI: null, endT: null};
 const ASR_EVENTS = {start:'başladı', audiostart:'mikrofon', soundstart:'ses', speechstart:'konuşma', speechend:'konuşma bitti', audioend:'mikrofon kapandı', nomatch:'eşleşme yok'};
 const ASR_ERRORS = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. ✓ Kontrol et\'e dokun ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'};
 const ASR_FATAL = ['not-allowed', 'service-not-allowed', 'network', 'audio-capture'];
@@ -553,6 +555,17 @@ function asrEnded() {
   clearTimeout(ASR.endT); clearInterval(ASR.idleI); micStoppers.delete(asrStop);
   ASR.state = 'idle'; const o = ASR.owner; ASR.owner = null; o?.ended(); asrBar();
 }
+// Dokunma anındaki sonuçlarla (snap) şimdikiler arasındaki yeni konuşma: yeni sonuç sıraları tamamen, değişen bir sonuç eskisinin
+// devamıysa yalnızca eklenen kısım, değilse (iPhone metni baştan yazdıysa) tamamı.
+function asrDelta(snap, now) {
+  const norm = x => x.toLocaleLowerCase().trim();
+  return now.map((t, i) => {
+    const old = snap[i];
+    if (old === undefined) return t;
+    if (norm(t) === norm(old)) return '';
+    return norm(t).startsWith(norm(old)) ? t.slice(old.length) : t;
+  }).join(' ').replace(/\s+/g, ' ').trim();
+}
 function asrInstance() {
   if (ASR.r) return ASR.r;
   const r = new (SpeechRec())(); ASR.r = r;
@@ -561,8 +574,9 @@ function asrInstance() {
     if (ASR.r !== r) return;
     if (ASR.log.at(-1) !== 'sonuç') ASR.log.push('sonuç');
     ASR.heard++; ASR.lastUse = Date.now();
-    ASR.words = [...e.results].map(x => x[0]?.transcript || '').join(' ').split(/\s+/).filter(Boolean);
-    ASR.owner?.update(ASR.words.slice(ASR.base));
+    ASR.results = [...e.results].map(x => x[0]?.transcript || '');
+    // Metin değişmediyse (ör. aynı kelime yeniden söylendi ve iPhone metni aynısıyla baştan yazdı) dokunmadan sonra gelen sonuç yine yeni konuşmadır.
+    ASR.owner?.update(asrDelta(ASR.snap, ASR.results) || ASR.results.filter(t => t.trim()).at(-1)?.trim() || '');
   };
   r.onerror = e => { if (ASR.r !== r) return; ASR.log.push(`hata:${e.error}`); if (ASR_FATAL.includes(e.error)) ASR.owner?.error(e.error); };
   r.onend = () => { if (ASR.r !== r) return; ASR.log.push('bitti'); asrEnded(); };
@@ -573,14 +587,14 @@ function asrCheck(owner, lang) {
   ASR.lastUse = Date.now();
   if (ASR.state === 'listening' && ASR.lang === lang) {
     const prev = ASR.owner; ASR.owner = null; prev?.cancel();
-    ASR.base = ASR.words.length; ASR.owner = owner; return 'ok';
+    ASR.snap = [...ASR.results]; ASR.owner = owner; return 'ok';
   }
   if (ASR.state === 'listening') { asrStop(); return 'busy'; }
   if (ASR.state === 'closing') {
     if (Date.now() - ASR.stopAt < ASR_STUCK_MS) return 'busy';
     try { ASR.r.abort(); } catch {} ASR.r = null; asrEnded();
   }
-  ASR.log = []; ASR.heard = 0; ASR.words = []; ASR.base = 0; ASR.lang = lang;
+  ASR.log = []; ASR.heard = 0; ASR.results = []; ASR.snap = []; ASR.lang = lang;
   const go = () => { const r = asrInstance(); r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1; r.start(); };
   try { go(); }
   catch (e) {
@@ -622,7 +636,7 @@ function checker(text, voice) {
       words, el('p', {className:'small muted', textContent:`Anlaşılan: „${best.h}”`}));
   };
   // Başarısızlıkta: mesaj, gerekirse "Yenile ve devam et", ve tanılama satırı (sürüm + tanıma olayları).
-  const fail = (msg, reload) => panel.replaceChildren(el('p', {textContent:msg}), reload ? reloadBtn() : '', el('p', {className:'small muted diag', textContent:`Tanılama ${APP_VERSION}: ${ASR.log.join(' → ') || '—'} · oturum ${ASR.starts}`}));
+  const fail = (msg, reload) => panel.replaceChildren(el('p', {textContent:msg}), reload ? reloadBtn() : '', el('p', {className:'small muted diag', textContent:`Tanılama ${APP_VERSION}: ${ASR.log.join(' → ') || '—'} · oturum ${ASR.starts} · son duyulan: „${ASR.results.join(' ').trim().slice(-60) || '—'}”`}));
   // Dokunmanın içinde eşzamanlı çalışır; burada await olmamalı.
   const listen = () => {
     stopAudio();
@@ -640,7 +654,7 @@ function checker(text, voice) {
     };
     const owner = {
       finish: () => finish(),
-      update: words => { heard = words.join(' '); if (!heard) return; clearTimeout(quiet); quiet = setTimeout(() => finish(), ASR_QUIET_MS); },
+      update: text => { heard = text; if (!heard) return; clearTimeout(quiet); quiet = setTimeout(() => finish(), ASR_QUIET_MS); },
       error: code => finish(code), ended: () => finish(), cancel: () => finish('cancel')
     };
     let st; try { st = asrCheck(owner, voice); } catch { panel.textContent = 'Bu tarayıcı konuşma tanımayı desteklemiyor.'; return; }
