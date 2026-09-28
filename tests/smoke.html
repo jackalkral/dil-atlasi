@@ -56,7 +56,7 @@
     check($('#lessonPill').textContent === 'Ders 1/30', 'Temiz kurulumda Ders 1/30', $('#lessonPill').textContent);
     check($('#lessonTitle').textContent === 'Selamlaşma', 'İlk ders başlığı Selamlaşma');
     check($$('.step.open .item:not(.freq) .pron').length === 8, 'Sekiz kelimenin Türkçe okunuşu görünüyor', $$('.step.open .item .pron').map(e => e.textContent).slice(0, 3).join(' '));
-    check(!!$('#voiceSelect') && $('#voiceSelect').options.length >= 1 && !!$('#trVoiceSelect'), 'Ses seçici var');
+    check(!!$('#voiceSelect') && $('#voiceSelect').options.length >= 1, 'Ses seçici var');
     check($$('.step').length === 4, '4 aşama görünüyor');
     check($$('.lang-chip').length === 4, '4 dil düğmesi var');
     check(!w.document.getElementById('panel-bugun').hidden && w.document.getElementById('panel-yuru').hidden, 'Varsayılan sekme Bugün');
@@ -107,10 +107,25 @@
     const hf2 = $$('.step-head'); if (hf2[1].getAttribute('aria-expanded') !== 'true') hf2[1].click();
     $$('.step.open .btn').find(b => b.textContent.startsWith('Tamamladım')).click();
 
-    // 4) Dinle: ses çalışması baştan sona, bitince shadow işaretlenir
-    $('#tab-yuru').click(); $('#drillPlay').click();
+    // 3c) Ses zinciri: "Hepsini dinle" başka bir ▶ ile durur (Safari cancel sonrası onend gönderse bile)
+    const spoken = [], fakeSpeak = u => { spoken.push(u.lang); w.setTimeout(() => u.onend && u.onend(), 5); };
+    w.speechSynthesis.speak = fakeSpeak; w.speechSynthesis.cancel = () => {};
+    const hl = $$('.step-head'); if (hl[1].getAttribute('aria-expanded') !== 'true') hl[1].click();
+    $$('.step.open .btn').find(b => b.textContent === '▶ Hepsini dinle').click(); await wait(2);
+    $$('.step.open .item .speak')[3].click(); await wait(150);
+    check(spoken.length === 2, 'Tek ▶, "Hepsini dinle" zincirini durdurdu', `çalınan=${spoken.length}`);
+    spoken.length = 0; $$('.step.open .btn').find(b => b.textContent === '▶ Hepsini dinle').click(); await wait(150);
+    check(spoken.length === 8, '"Hepsini dinle" yalnızca basınca 8 kelimeyi okudu', `çalınan=${spoken.length}`);
+
+    // 4) Dinle: ses çalışması baştan sona, Türkçe seslendirilmez, anlam yazılı; bitince shadow işaretlenir
+    spoken.length = 0; $('#tab-yuru').click(); $('#drillPlay').click(); await wait(2);
+    check($('#drillL2').textContent === w.LESSONS.fr[0].w[0][0] && $('#drillTr').textContent.endsWith(w.LESSONS.fr[0].w[0][1]), 'Ses çalışması: hedef dil büyük, Türkçe anlam altında yazılı', $('#drillTr').textContent);
     for (let i = 0; i < 400 && !$('#drillL1').textContent.startsWith('Bitti'); i++) await wait(50);
     check($('#drillL1').textContent.startsWith('Bitti'), 'Ses çalışması tamamlandı');
+    check(spoken.length > 0 && spoken.every(l => l.startsWith('fr')), 'Ses çalışmasında Türkçe seslendirme yok', [...new Set(spoken)].join(','));
+    check(!$('#trVoiceSelect'), 'Türkçe ses seçici kaldırıldı');
+    $('#drillPlay').click(); await wait(2); $('#tab-bugun').click(); await wait(20);
+    check($('#drillPlay').textContent === '▶ Başlat', 'Sekme değişince ses çalışması durdu'); $('#tab-yuru').click();
     w.document.querySelector('input[name=rate][value="0.8"]').click();
     check(localStorage.getItem('dil-atlasi-rate') === '0.8', 'Konuşma hızı kaydedildi');
     check(localStorage.getItem(`da:shadow:fr:${today}`) === '1', 'Ses çalışması bitince shadow işaretlendi');
@@ -137,19 +152,35 @@
     check($$('.step.open .note-form .btn')[0].disabled, 'Günde 2 nottan sonra ekleme kapandı');
     check(!w.document.querySelector('img[src="x"]'), 'Not içeriği HTML olarak çalışmadı');
 
-    // 5a) Telaffuz kaydı: izin reddi anlaşılır mesaj verir; kayıt bitince mikrofon kapanır, kayıt yalnızca bellekte (blob)
+    // 5a) Telaffuz testi Konuş adımında görünür: her kelime/cümle için ▶, 🎙 Kaydet, ✓ Kontrol et
     let stopped = 0, deny = true;
     w.navigator.mediaDevices.getUserMedia = async () => { if (deny) throw Object.assign(new Error('x'), {name:'NotAllowedError'}); return {getTracks: () => [{stop() { stopped++; }}]}; };
     w.MediaRecorder = class { constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; } start() { this.state = 'recording'; } stop() { this.state = 'inactive'; this.ondataavailable({data:new w.Blob(['x'], {type:'audio/webm'})}); this.onstop(); } };
-    const say0 = $$('.step.open details.item')[0]; say0.open = true;
-    const recBtn = say0.querySelector('.rec .btn'); recBtn.click(); await wait(20);
-    check(/izni verilmedi/.test(say0.querySelector('.rec [role=status]').textContent), 'Mikrofon izni reddedilince açıklama gösterildi');
+    let heardText = '';
+    w.SpeechRecognition = w.webkitSpeechRecognition = class { start() { const t = heardText; w.setTimeout(() => { this.onresult({results:[[{transcript:t}]]}); this.onend(); }, 5); } stop() {} };
+    const hk = $$('.step-head'); hk[3].click(); if ($$('.step-head')[3].getAttribute('aria-expanded') !== 'true') $$('.step-head')[3].click();
+    const rows = $$('.step.open .pron-item');
+    check(rows.length === 13 && rows[0].querySelector('strong').textContent === w.LESSONS.fr[0].w[0][0] && rows[0].textContent.includes(w.LESSONS.fr[0].w[0][1]), 'Telaffuz testi: 8 kelime + 5 cümle, Türkçe anlam yazılı', `satır=${rows.length}`);
+    const say0 = rows[8], tools = say0.querySelector('.pron-tools'), recBtn = [...tools.querySelectorAll('.btn')].find(b => b.textContent.includes('Kaydet'));
+    recBtn.click(); await wait(20);
+    check(/izni verilmedi/.test(tools.querySelector('.rec [role=status]').textContent), 'Mikrofon izni reddedilince açıklama gösterildi');
     // Test ortamında zamanlayıcılar 5 ms'ye kısaltıldığı için kayıt süre sınırında kendiliğinden biter.
     deny = false; recBtn.click(); await wait(40);
-    const aud = say0.querySelector('.rec audio');
+    const aud = tools.querySelector('.rec audio');
     check(stopped === 1 && aud && aud.src.startsWith('blob:') && recBtn.textContent.includes('Yeniden'), 'Kayıt süre sınırında bitti: mikrofon kapatıldı, kayıt dinlenebilir');
     recBtn.click(); await wait(40);
-    check(stopped === 2 && say0.querySelectorAll('.rec audio').length === 1 && say0.querySelector('.rec audio').src !== aud.src, 'Yeni kayıt eskisinin yerini aldı');
+    check(stopped === 2 && tools.querySelectorAll('.rec audio').length === 1 && tools.querySelector('.rec audio').src !== aud.src, 'Yeni kayıt eskisinin yerini aldı');
+    // Otomatik kontrol: önce açık onay, sonra kelime kelime sonuç
+    const target8 = w.LESSONS.fr[0].p[0][0], chk = [...tools.querySelectorAll('.btn')].find(b => b.textContent.includes('Kontrol'));
+    chk.click(); await wait(20);
+    check(/Onaylıyor musun/.test(tools.querySelector('.check').textContent) && localStorage.getItem('dil-atlasi-tanima') === null, 'Otomatik kontrol önce onay istiyor');
+    heardText = target8.toLowerCase().replace(/[.,!?]/g, '');
+    [...tools.querySelectorAll('.check .btn')].find(b => b.textContent.startsWith('Onayla')).click(); await wait(40);
+    check(localStorage.getItem('dil-atlasi-tanima') === '1' && /%100/.test(tools.querySelector('.check').textContent), 'Doğru söylenince %100', tools.querySelector('.check').textContent);
+    const words8 = target8.split(/\s+/).filter(x => /\p{L}/u.test(x)); heardText = words8.slice(0, -1).join(' ') + ' xyz';
+    chk.click(); await wait(40);
+    check(tools.querySelectorAll('.check .word-miss').length === 1 && tools.querySelectorAll('.check .word-ok').length === words8.length - 1, 'Eksik kelime kırmızı işaretlendi', tools.querySelector('.check').textContent);
+    check(w.matchWords("J'ai un chat.", 'jai un chat').score < 1 && w.matchWords('Ça va très bien', 'ca va tres bien').score === 1, 'Karşılaştırma aksan ve noktalamayı yok sayıyor');
     check(!Object.keys(localStorage).some(k => /kayit|rec|audio/i.test(k)), 'Ses kaydı saklanmadı');
 
     // 5c) Aynı gün kendini sına
