@@ -71,9 +71,12 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 - Haricî bağlantılar `noopener noreferrer` ile açılmalı.
 - Kullanıcı girdisi ileride eklenirse HTML'e doğrudan basılmamalı.
 - Bağımlılık eklenirse sürüm sabitlenmeli ve tedarik zinciri riski değerlendirilmelidir.
-- Üretimde mümkünse Content Security Policy eklenmeli; bunun için inline CSS/JS ayrı dosyalara taşınmalıdır.
+- `index.html` içinde CSP meta etiketi var (`default-src 'self'`). Satır içi betik ve `style=""` özniteliği ekleme; stil `styles.css`'e, betik `app.js`'e gider. `innerHTML` kullanma, `el()` yardımcısı ve `textContent` kullan.
 
 ## Kabul testi
+
+Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (38 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+
 
 - Dört dil arasında geçiş yapılabiliyor.
 - Her görev işaretlendiğinde ilerleme ve geçmiş güncelleniyor.

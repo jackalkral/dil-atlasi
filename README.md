@@ -29,6 +29,8 @@ content/{en,fr,it,de}.js  # 30'ar derslik içerik: t başlık, n ipucu, w kelime
 content/media.js      # Dinle ve İzle sekmelerinin doğrulanmış kaynakları
 sw.js                 # Çevrimdışı uygulama kabuğu ve güncelleme bildirimi
 manifest.webmanifest, icons/
+tests/content.test.mjs  # İçerik, kaynak, güvenlik ve anahtar testleri (Node, bağımlılıksız)
+tests/smoke.html      # Tarayıcıda uçtan uca duman testi (verini yedekleyip geri yükler)
 KAYNAKLAR.md          # Yöntem ve kaynak dayanakları
 CLAUDE.md             # Geliştirme bağlamı
 ```
@@ -40,6 +42,14 @@ python3 -m http.server 4173
 ```
 
 Ardından `http://localhost:4173` adresini aç. Service Worker dosyaları önbellekten verdiği için geliştirirken tarayıcıda Service Worker'ı kaldırmak veya `sw.js` içindeki `CACHE_NAME` değerini artırmak gerekir.
+
+## Testler
+
+```bash
+node tests/content.test.mjs
+```
+
+Tarayıcı testi: yerel sunucu açıkken `http://localhost:4173/tests/smoke.html` (veya canlı sitede `/tests/smoke.html`). Sayfa mevcut verini yedekler, testleri çalıştırır ve verini geri yükler.
 
 ## Telefona kurma
 
@@ -53,6 +63,7 @@ Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 - Aktif dil: `dil-atlasi-active` · Açık sekme: `dil-atlasi-tab`
 - Aşamalar: `da:{görev}:{dil}:{YYYY-MM-DD}` — görevler `review`, `lesson`, `shadow`, `speak`; diller `en`, `fr`, `it`, `de`
 - Sayaç süresi: `dil-atlasi-timer` (`25`, `45`, `60`)
+- İlerleme sekmesindeki **Bu dilde baştan başla** yalnızca seçili dilin kayıtlarını ve kartlarını siler.
 - Tekrar kartları: `dil-atlasi-srs` — `{ v: 2, cards: { "en:0:w3": { b: kutu, d: "YYYY-MM-DD" } } }` (w = kelime, s = cümle). Eski v1 kartlar `dil-atlasi-srs-v1` anahtarında saklanır.
 
 Ders günü ayrıca saklanmaz; o dilde bugünden önce çalışılan gün sayısından hesaplanır.

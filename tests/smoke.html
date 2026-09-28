@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dil Atlası — duman testi</title>
+<style>
+  body{font:15px/1.5 system-ui,sans-serif;margin:16px;background:#07101d;color:#f4f7fb}
+  li.ok{color:#7be0c3}li.fail{color:#ff8b9b}#summary{font-weight:700;font-size:1.1rem}
+  iframe{width:375px;height:700px;border:1px solid #263954;border-radius:12px;margin-top:12px;background:#fff}
+</style>
+</head>
+<body>
+<h1>Dil Atlası — uçtan uca duman testi</h1>
+<p>Uygulamayı çerçeve içinde açar ve ana akışları dener. Başta mevcut verini yedekler, sonda aynen geri yükler.</p>
+<p id="summary">Çalışıyor…</p>
+<ol id="results"></ol>
+<iframe id="app" title="Test edilen uygulama"></iframe>
+<script>
+(async () => {
+  const results = document.getElementById('results');
+  let pass = 0, fail = 0;
+  const check = (ok, msg, extra = '') => { const li = document.createElement('li'); li.className = ok ? 'ok' : 'fail'; li.textContent = `${ok ? '✓' : '✗'} ${msg}${extra ? ' — ' + extra : ''}`; results.append(li); ok ? pass++ : fail++; };
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const today = new Date().toLocaleDateString('en-CA');
+  const day = o => { const d = new Date(); d.setDate(d.getDate() + o); return d.toLocaleDateString('en-CA'); };
+
+  // Kullanıcının verisini yedekle.
+  const saved = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); saved[k] = localStorage.getItem(k); }
+  const frame = document.getElementById('app');
+  const load = async () => { frame.src = '../index.html?test=' + Date.now(); await new Promise(r => frame.onload = r); await wait(150); const w = frame.contentWindow; w.speechSynthesis.speak = u => w.setTimeout(() => u.onend && u.onend(), 5); w.speechSynthesis.cancel = () => {}; const st = w.setTimeout.bind(w); w.setTimeout = (f, ms) => st(f, Math.min(ms, 5)); w.confirm = () => true; w.cspViolations = []; w.document.addEventListener('securitypolicyviolation', e => w.cspViolations.push(e.violatedDirective + ' ' + e.blockedURI)); return w; };
+
+  try {
+    // 1) Temiz kurulum
+    localStorage.clear();
+    let w = await load(), $ = s => w.document.querySelector(s), $$ = s => [...w.document.querySelectorAll(s)];
+    check($('#lessonPill').textContent === 'Ders 1/30', 'Temiz kurulumda Ders 1/30', $('#lessonPill').textContent);
+    check($('#lessonTitle').textContent === 'Selamlaşma', 'İlk ders başlığı Selamlaşma');
+    check($$('.step').length === 4, '4 aşama görünüyor');
+    check($$('.lang-chip').length === 4, '4 dil düğmesi var');
+    check(!w.document.getElementById('panel-bugun').hidden && w.document.getElementById('panel-yuru').hidden, 'Varsayılan sekme Bugün');
+
+    // 2) Dil geçişi ve kalıcılık
+    $$('.lang-chip')[1].click();
+    check(localStorage.getItem('dil-atlasi-active') === 'fr', 'Fransızca seçimi kaydedildi');
+    check($('.step.open .item strong')?.textContent === w.LESSONS.fr[0].w[0][0], 'Fransızca ilk kelime görünüyor', $('.step.open .item strong')?.textContent);
+    $('#tab-izle').click();
+    w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    check($('#todayEyebrow').textContent.startsWith('Fransızca'), 'Yenilemede dil korunuyor');
+    check(!$('#panel-izle').hidden, 'Yenilemede sekme korunuyor');
+    check($$('#videoRes a').length >= 2 && $$('#videoRes a').every(a => a.rel === 'noopener noreferrer'), 'İzle: video bağlantıları noopener');
+    $('#tab-bugun').click();
+
+    // 3) Kelimeler + cümle kurma + aşama işaretleme
+    const idx = 0, target = w.LESSONS.fr[idx].p[0][0].split(/\s+/);
+    for (const tok of target) { const c = $$('.step.open .build-pool .chip').find(x => x.textContent === tok); c && c.click(); }
+    check($('.step.open .result').textContent.startsWith('Doğru'), 'Cümle kurma: doğru sıra kabul edildi');
+    $$('.step.open .btn').find(b => b.textContent.startsWith('Tamamladım')).click();
+    check(localStorage.getItem(`da:lesson:fr:${today}`) === '1', 'Kelimeler aşaması da:lesson anahtarına yazıldı');
+    check($('.step.open .step-title').textContent === 'Dinle ve tekrar et', 'Sonraki aşama açıldı');
+    check($('#todayBar').style.width === '50%', 'İlerleme çubuğu %50', $('#todayBar').style.width);
+
+    // 4) Dinle: ses çalışması baştan sona, bitince shadow işaretlenir
+    $('#tab-yuru').click(); $('#drillPlay').click();
+    for (let i = 0; i < 100 && !$('#drillL1').textContent.startsWith('Bitti'); i++) await wait(50);
+    check($('#drillL1').textContent.startsWith('Bitti'), 'Ses çalışması tamamlandı');
+    check(localStorage.getItem(`da:shadow:fr:${today}`) === '1', 'Ses çalışması bitince shadow işaretlendi');
+    check($$('#audioRes a').length >= 2, 'Dinle: podcast bağlantıları var');
+
+    // 5) Konuş: ChatGPT bağlantısı yalnızca ders metnini taşır
+    $('#tab-bugun').click();
+    const heads = $$('.step-head'); if (heads[3].getAttribute('aria-expanded') !== 'true') heads[3].click();
+    const gpt = $$('.step.open a').find(a => a.textContent.includes('ChatGPT'));
+    const q = decodeURIComponent(gpt.href.split('?q=')[1] || '');
+    check(gpt.href.startsWith('https://chatgpt.com/?q=') && gpt.rel === 'noopener noreferrer', 'ChatGPT bağlantısı doğru ve noopener');
+    check(q.includes(w.LESSONS.fr[0].t) && !q.includes('localStorage'), 'Mesaj günün dersini içeriyor');
+
+    // 6) Ertesi gün: ders ilerler, tekrar kartları gelir
+    localStorage.clear(); localStorage.setItem('dil-atlasi-active', 'en'); localStorage.setItem(`da:lesson:en:${day(-1)}`, '1');
+    w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    check($('#lessonPill').textContent === 'Ders 2/30', 'Bir gün çalışınca Ders 2', $('#lessonPill').textContent);
+    check(/Kalan 13 kart/.test($('.step.open .flash')?.textContent || ''), 'Dünkü 13 öğe tekrar kartı oldu');
+    let n = 0; while ($('#steps .flash') && n < 20) { $('#steps .flash .btn').click(); const b = $$('#steps .flash .actions .btn'); (n === 0 ? b[0] : b[1]).click(); n++; }
+    const srs = JSON.parse(localStorage.getItem('dil-atlasi-srs'));
+    check(n === 13 && srs.v === 2, '13 kart değerlendirildi, v2 biçimi', `n=${n}`);
+    check(srs.cards['en:0:w0'].d === day(1) && srs.cards['en:0:w1'].d === day(1), 'Bilinen ve bilinmeyen kart ertesi güne planlandı');
+    check(localStorage.getItem(`da:review:en:${today}`) === '1', 'Kartlar bitince review kendiliğinden işaretlendi');
+
+    // 7) Yedekleme: dışa aktar, bozuk dosyayı reddet, geri yükle
+    let blob; const oc = w.URL.createObjectURL; w.URL.createObjectURL = b => { blob = b; return oc(b); }; w.HTMLAnchorElement.prototype.click = function () {};
+    $('#exportData').click(); const backup = JSON.parse(await blob.text());
+    check(backup.schemaVersion === 1 && backup.srsVersion === 2 && Object.keys(backup.srs).length === 13, 'Yedek görevleri ve 13 kartı içeriyor');
+    const imp = async data => { const dt = new w.DataTransfer(); dt.items.add(new w.File([typeof data === 'string' ? data : JSON.stringify(data)], 'b.json')); $('#importFile').files = dt.files; $('#importFile').dispatchEvent(new w.Event('change')); await wait(100); return $('#dataStatus'); };
+    check((await imp('{bozuk')).classList.contains('error'), 'Bozuk JSON reddedildi');
+    backup.srs['<img>'] = {b:1, d:today}; backup.srs['en:0:w9'] = {b:99, d:'x'};
+    localStorage.clear();
+    await imp(backup);
+    const restored = JSON.parse(localStorage.getItem('dil-atlasi-srs'));
+    check(Object.keys(restored.cards).length === 13 && localStorage.getItem(`da:lesson:en:${day(-1)}`) === '1', 'Geri yükleme kartları ve görevleri getirdi, geçersizleri almadı');
+
+    // 8) Sayaç
+    w = await load(); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)];
+    $('#tab-ilerleme').click(); $('#timerDuration input[value="45"]').click();
+    check($('#timerDisplay').textContent === '45:00' && localStorage.getItem('dil-atlasi-timer') === '45', 'Sayaç 45 dk seçildi');
+    $('#timerToggle').click(); check($('#timerToggle').textContent === 'Duraklat', 'Sayaç başladı');
+    $('#timerToggle').click(); check($('#timerToggle').textContent === 'Devam et', 'Sayaç durdu');
+    $('#timerReset').click(); check($('#timerDisplay').textContent === '45:00', 'Sayaç sıfırlandı');
+    check($$('#lessonList li').length === 30 && $('#lessonList li.current').textContent === w.LESSONS.en[1].t, '30 günlük rota, güncel ders işaretli');
+
+    // 9) Dili sıfırla: yalnızca o dil silinir
+    localStorage.setItem(`da:lesson:de:${day(-1)}`, '1');
+    $('#resetLang').click();
+    check(localStorage.getItem(`da:lesson:en:${day(-1)}`) === null && localStorage.getItem(`da:lesson:de:${day(-1)}`) === '1', 'Sıfırlama yalnızca seçili dili sildi');
+    check(!Object.keys(JSON.parse(localStorage.getItem('dil-atlasi-srs')).cards).some(k => k.startsWith('en:')), 'Sıfırlama o dilin kartlarını sildi');
+    check($('#lessonPill').textContent === 'Ders 1/30', 'Sıfırlamadan sonra Ders 1');
+
+    // 10) Mobil ve güvenlik
+    check(w.document.documentElement.scrollWidth <= w.innerWidth, 'Mobil genişlikte yatay taşma yok');
+    check(w.cspViolations.length === 0, 'CSP ihlali yok', w.cspViolations.join(', '));
+    check(!!w.document.querySelector('meta[http-equiv="Content-Security-Policy"]'), 'CSP etiketi var');
+  } catch (e) {
+    check(false, 'Test beklenmedik şekilde durdu', e.message);
+  } finally {
+    // Kullanıcının verisini geri yükle.
+    localStorage.clear(); Object.entries(saved).forEach(([k, v]) => localStorage.setItem(k, v));
+    document.getElementById('summary').textContent = `${pass} geçti, ${fail} başarısız. Verilerin geri yüklendi.`;
+    document.title = fail ? 'BAŞARISIZ' : 'GEÇTİ';
+    window.testResult = {pass, fail};
+  }
+})();
+</script>
+</body>
+</html>

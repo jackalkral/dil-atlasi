@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#08111f">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="description" content="İngilizce, Fransızca, İtalyanca ve Almanca için ücretsiz kişisel öğrenme merkezi.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -33,7 +34,7 @@
     <!-- BUGÜN: aşamalı günlük yol -->
     <section class="panel" id="panel-bugun" role="tabpanel" aria-labelledby="tab-bugun">
       <div class="card">
-        <div class="today-meta"><div><div class="eyebrow" id="todayEyebrow"></div><h1 style="margin:2px 0 0;font-size:1.45rem;line-height:1.2" id="lessonTitle"></h1></div><span class="pill" id="lessonPill"></span></div>
+        <div class="today-meta"><div><div class="eyebrow" id="todayEyebrow"></div><h1 class="lesson-title" id="lessonTitle"></h1></div><span class="pill" id="lessonPill"></span></div>
         <div class="bar" aria-hidden="true"><span id="todayBar"></span></div>
         <p class="small" id="todayHint"></p>
       </div>
@@ -46,7 +47,7 @@
       <div class="card player">
         <div class="eyebrow" id="drillLabel">Bugünün ses çalışması</div>
         <div class="now" aria-live="polite"><span class="l1" id="drillL1">Başlat'a dokun.</span><span class="l2" id="drillL2"></span></div>
-        <div class="player-controls"><button class="btn big" id="drillPlay" type="button">▶ Başlat</button><button class="btn secondary big" id="drillStop" type="button" style="max-width:34%">■ Durdur</button></div>
+        <div class="player-controls"><button class="btn big" id="drillPlay" type="button">▶ Başlat</button><button class="btn secondary big stop" id="drillStop" type="button">■ Durdur</button></div>
         <div class="options" role="radiogroup" aria-label="Duraklama süresi">
           <label><input type="radio" name="gap" value="2"><span>Kısa ara</span></label>
           <label><input type="radio" name="gap" value="3.5" checked><span>Normal ara</span></label>
@@ -66,7 +67,7 @@
       <div class="panel-head"><h1>Akşam izle</h1><p>Uzanırken öğren. Altyazıyı <strong>izlediğin dilde</strong> aç; Türkçe altyazı kulağını geliştirmez.</p></div>
       <div class="card">
         <h2>Nasıl izlemeli?</h2>
-        <ol class="small muted" style="margin:6px 0 0;padding-left:1.2em">
+        <ol class="small muted howto">
           <li>Seviyene uygun kısa bir bölüm seç (başlangıçta 5–15 dk).</li>
           <li>Hedef dilde altyazıyla izle; anlamadığın yere takılma.</li>
           <li>Beğendiğin bölümü ertesi gün bir kez daha, mümkünse altyazısız izle.</li>
@@ -111,7 +112,12 @@
         <div class="row"><button class="btn" id="exportData" type="button">Yedeği indir</button><button class="btn secondary" id="importData" type="button">Yedekten yükle</button><input type="file" id="importFile" accept="application/json,.json" hidden></div>
         <p class="data-status" id="dataStatus" role="status"></p>
       </div>
-      <div class="card"><div class="row"><button class="btn secondary" id="installApp" type="button">Telefona kur</button></div></div>
+      <div class="card">
+        <h2>Bu dilde baştan başla</h2>
+        <p class="small">Seçili dilin çalışma geçmişini ve tekrar kartlarını siler; ders 1'den başlarsın. Diğer diller etkilenmez. Önce yedek almak iyi olur.</p>
+        <div class="row"><button class="btn secondary" id="resetLang" type="button">Sıfırla</button></div>
+      </div>
+      <div class="card" id="installCard"><div class="row"><button class="btn secondary" id="installApp" type="button">Telefona kur</button></div></div>
     </section>
   </main>
 

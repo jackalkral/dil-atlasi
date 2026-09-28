@@ -166,10 +166,10 @@ function lessonBody(lesson, voice, i) {
   return [
     el('div', {className:'eyebrow', textContent:'1 · Kelimeler'}), el('p', {className:'small', textContent:'Her kelimeyi dinle ve iki kez yüksek sesle söyle.'}),
     el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.w)}), words,
-    el('div', {className:'eyebrow', style:'margin-top:18px', textContent:'2 · Cümleler'}), el('p', {className:'small', textContent:'Aynı kelimeler cümle içinde. Dinle, sonra ekrana bakmadan söylemeyi dene.'}),
+    el('div', {className:'eyebrow mt', textContent:'2 · Cümleler'}), el('p', {className:'small', textContent:'Aynı kelimeler cümle içinde. Dinle, sonra ekrana bakmadan söylemeyi dene.'}),
     el('button', {type:'button', className:'btn secondary', textContent:'▶ Hepsini dinle', onclick: () => playAll(lesson.p)}), sentences,
     el('div', {className:'tip', textContent:`💡 ${lesson.n}`}),
-    el('div', {className:'eyebrow', style:'margin-top:18px', textContent:'3 · Cümle kur'}), sentenceBuilder(lesson.p, voice),
+    el('div', {className:'eyebrow mt', textContent:'3 · Cümle kur'}), sentenceBuilder(lesson.p, voice),
     doneRow('lesson', i + 1)
   ];
 }
@@ -199,13 +199,13 @@ function coachPrompt(lesson) {
 function speakBody(lesson, voice, i) {
   const prompt = coachPrompt(lesson), q = encodeURIComponent(prompt), status = el('span', {className:'small muted', role:'status'});
   const say = el('div', {className:'items'}, ...lesson.p.map(([t, tr]) => {
-    const d = el('details', {className:'item'}); d.append(el('summary', {textContent:tr}), el('div', {style:'display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px'}, el('strong', {textContent:t}), speakBtn(t, voice)));
+    const d = el('details', {className:'item'}); d.append(el('summary', {textContent:tr}), el('div', {className:'say-row'}, el('strong', {textContent:t}), speakBtn(t, voice)));
     return d;
   }));
   return [
     el('div', {className:'eyebrow', textContent:'1 · Kendi kendine'}),
     el('p', {className:'small', textContent:'Türkçesini oku, cümleyi yüksek sesle söyle, sonra dokunup kontrol et.'}), say,
-    el('div', {className:'eyebrow', style:'margin-top:18px', textContent:'2 · Yapay zekâyla sesli sohbet (isteğe bağlı)'}),
+    el('div', {className:'eyebrow mt', textContent:'2 · Yapay zekâyla sesli sohbet (isteğe bağlı)'}),
     el('p', {className:'small', textContent:'"ChatGPT\'de aç" bugünkü dersle hazırlanmış mesajı ChatGPT\'ye gönderir ve öğretmen gibi yazmaya başlar. Konuşarak devam etmek için sağ alttaki ses dalgası simgesine dokun. "Claude\'da aç" mesajı kopyalar ve Claude\'u açar; mesajı yapıştırıp gönder, sonra ses simgesine dokun. Mesajda kişisel bilgin yok; yalnızca bugünkü ders gider. Hesap gerekir.'}),
     el('div', {className:'step-actions'},
       el('a', {className:'btn link-btn', href:`https://chatgpt.com/?q=${q}`, target:'_blank', rel:'noopener noreferrer', textContent:'ChatGPT\'de aç'}),
@@ -344,11 +344,22 @@ $('#importFile').onchange = async e => {
   } catch (err) { setDataStatus(err.message || 'Geri yükleme başarısız.', true); }
 };
 
+// ---------- Dili sıfırlama ----------
+// Yalnızca seçili dilin aşama kayıtlarını ve tekrar kartlarını siler (kullanıcı onayıyla).
+$('#resetLang').onclick = () => {
+  const l = languages[active], prefix = new RegExp(`^da:(${tasks.join('|')}):${active}:`);
+  if (!confirm(`${l.name} için tüm çalışma geçmişi ve tekrar kartları silinecek; ders 1'den başlayacaksın.\nDiğer diller etkilenmez. Emin misin?`)) return;
+  const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (prefix.test(k)) keys.push(k); }
+  keys.forEach(store.del);
+  const s = loadSrs(); Object.keys(s.cards).forEach(id => { if (id.startsWith(active + ':')) delete s.cards[id]; }); saveSrs(s);
+  openStep = null; render(); switchTab('bugun');
+};
+
 // ---------- Kurulum, tarayıcı ajan araçları, Service Worker ----------
 let installPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
 $('#installApp').onclick = async () => { if (installPrompt) { await installPrompt.prompt(); installPrompt = null; return; } alert('iPhone/iPad: Safari\'de Paylaş düğmesine, ardından "Ana Ekrana Ekle"ye dokun.\n\nAndroid: Chrome menüsünden "Uygulamayı yükle"yi seç.'); };
-if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) $('#installApp').closest('.card').hidden = true;
+if (matchMedia('(display-mode: standalone)').matches || navigator.standalone === true) $('#installCard').hidden = true;
 
 function registerAgentTools() {
   const ctx = document.modelContext; if (!ctx?.registerTool) return;

@@ -3,7 +3,7 @@ window.LESSONS = window.LESSONS || {};
 window.LESSONS.it = [
   {t:"Selamlaşma", n:"ci 'çi', gi 'ci' okunur: ciao 'çao', buongiorno 'bon-cor-no'. Hâl sorarken essere değil stare kullanılır: Come stai?",
     w:[["ciao","merhaba / hoşça kal (samimi)"],["buongiorno","günaydın / iyi günler"],["buonasera","iyi akşamlar"],["arrivederci","hoşça kal"],["per favore","lütfen"],["grazie","teşekkürler"],["sì","evet"],["no","hayır"]],
-    p:[["Ciao, come stai?","Merhaba, nasılsın?"],["Sto bene, grazie.","İyiyim, teşekkürler."],["Buongiorno!","Günaydın!"],["Ci vediamo!","Görüşürüz!"],["Grazie mille.","Çok teşekkürler."]]},
+    p:[["Ciao, come stai?","Merhaba, nasılsın?"],["Sto bene, grazie.","İyiyim, teşekkürler."],["Buongiorno a tutti!","Herkese günaydın!"],["Ci vediamo!","Görüşürüz!"],["Grazie mille.","Çok teşekkürler."]]},
 
   {t:"Kendini tanıtma", n:"ch 'k' okunur: mi chiamo 'mi kiamo'. Nereli olduğunu söylemek için: Vengo dalla Turchia veya Sono di Ankara.",
     w:[["il nome","ad, isim"],["io","ben"],["tu","sen"],["la Turchia","Türkiye"],["turco / turca","Türk (erkek / kadın)"],["di dove?","nereli?"],["piacere","memnun oldum"],["e","ve"]],
@@ -63,7 +63,7 @@ window.LESSONS.it = [
 
   {t:"Hava durumu", n:"Hava çoğunlukla fare ile anlatılır: fa caldo, fa freddo, fa bel tempo. Il tempo hem 'hava' hem 'zaman' demektir.",
     w:[["il tempo","hava"],["il sole","güneş"],["la pioggia","yağmur"],["la neve","kar"],["il vento","rüzgâr"],["caldo","sıcak"],["freddo","soğuk"],["nuvoloso","bulutlu"]],
-    p:[["Che tempo fa oggi?","Bugün hava nasıl?"],["Il tempo è bellissimo.","Hava çok güzel."],["Piove.","Yağmur yağıyor."],["Oggi fa freddo.","Bugün soğuk."],["Domani ci sarà il sole.","Yarın hava güneşli olacak."]]},
+    p:[["Che tempo fa oggi?","Bugün hava nasıl?"],["Il tempo è bellissimo.","Hava çok güzel."],["Oggi piove.","Bugün yağmur yağıyor."],["Oggi fa freddo.","Bugün soğuk."],["Domani ci sarà il sole.","Yarın hava güneşli olacak."]]},
 
   {t:"Sevdiklerim", n:"Mi piace + tekil, mi piacciono + çoğul. Amare daha çok insanlar için kullanılır; hobiler için piacere de.",
     w:[["piacere","hoşa gitmek, sevmek"],["la musica","müzik"],["il film","film"],["il libro","kitap"],["lo sport","spor"],["il calcio","futbol"],["nuotare","yüzmek"],["leggere","okumak"]],
