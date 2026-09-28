@@ -471,19 +471,26 @@ function speakBody(lesson, voice, i) {
 // İzin yalnızca kullanıcı dokununca istenir. Kayıt bellekte kalır (blob), saklanmaz, gönderilmez; kayıt bitince mikrofon kapatılır.
 // Aynı anda tek kayıt tutulur: yenisi yapılınca öncekinin adresi silinir. Bir kayıt en fazla REC_MAX_MS sürer.
 const REC_MAX_MS = 10000;
+// Açık mikrofon oturumlarını kapatan işlevler. Yeni kayıt/kontrol başlarken, sayfa arka plana geçerken hepsi kapatılır;
+// böylece telefonun durum çubuğundaki mikrofon işareti iş bitince söner.
+const micStoppers = new Set();
+const releaseMic = () => [...micStoppers].forEach(f => { try { f(); } catch {} });
+addEventListener('pagehide', releaseMic);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') releaseMic(); });
 const canRecord = () => !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
 let lastRec = null; // {url, player}
 function recorder(text, voice) {
   const btn = el('button', {type:'button', className:'btn secondary', textContent:'🎙 Kaydet'});
   const status = el('span', {className:'small muted', role:'status'}), player = el('div', {className:'rec-player'});
   let rec = null, stream = null, timer = null;
-  const release = () => { clearTimeout(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; };
+  const stopRec = () => { if (rec?.state === 'recording') rec.stop(); else release(); };
+  const release = () => { clearTimeout(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; micStoppers.delete(stopRec); };
   btn.onclick = async () => {
     if (rec?.state === 'recording') { rec.stop(); return; }
-    stopAudio();
+    releaseMic(); stopAudio();
     try { stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
     catch (e) { status.textContent = e?.name === 'NotAllowedError' ? 'Mikrofon izni verilmedi. İstersen tarayıcı ayarlarından izin verebilirsin.' : 'Mikrofon açılamadı.'; return; }
-    const chunks = [];
+    micStoppers.add(stopRec); const chunks = [];
     try { rec = new MediaRecorder(stream); } catch { release(); status.textContent = 'Bu tarayıcı ses kaydını desteklemiyor.'; return; }
     rec.ondataavailable = e => { if (e.data?.size) chunks.push(e.data); };
     rec.onstop = () => {
@@ -527,13 +534,16 @@ function checker(text, voice) {
     el('p', {className:'small', textContent:'Otomatik kontrol, söylediğini yazıya çevirmek için sesini tarayıcının konuşma tanıma hizmetine gönderir (iPhone\'da Apple, Chrome\'da Google). Uygulama sesini saklamaz. Onaylıyor musun?'}),
     el('div', {className:'row'}, el('button', {type:'button', className:'btn', textContent:'Onayla ve dene', onclick: () => { store.set(ASR_KEY, '1'); renderVoiceSettings(); listen(); }}),
       el('button', {type:'button', className:'btn secondary', textContent:'Vazgeç', onclick: () => panel.replaceChildren()})));
+  // iPhone'da sonuç geldikten sonra oturum kendiliğinden kapanmaz ve mikrofon açık kalır; bu yüzden sonuç, hata ya da süre sınırında abort() ile kapatılır.
+  const finish = r => { clearTimeout(r._t); micStoppers.delete(r._stop); try { r.abort(); } catch {} if (rec === r) { rec = null; btn.textContent = '✓ Kontrol et'; } };
   const listen = () => {
-    stopAudio();
+    releaseMic(); stopAudio();
     try { rec = new (SpeechRec())(); } catch { panel.textContent = 'Bu tarayıcı konuşma tanımayı desteklemiyor.'; return; }
+    const r = rec; r._stop = () => finish(r);
     rec.lang = voice; rec.interimResults = false; rec.maxAlternatives = 5; rec.continuous = false;
     let done = false;
     rec.onresult = e => {
-      done = true; const alts = [...(e.results[0] || [])].map(x => x.transcript);
+      done = true; finish(r); const alts = [...(e.results[0] || [])].map(x => x.transcript);
       const best = alts.map(h => ({h, ...matchWords(text, h)})).sort((x, y) => y.score - x.score)[0] || {h:'', ...matchWords(text, '')};
       const pct = Math.round(best.score * 100), missed = best.words.filter(x => !x.ok).map(x => x.w);
       const words = el('div', {className:'check-words'}, ...best.words.map(x => el('span', {className: x.ok ? 'word-ok' : 'word-miss', textContent:x.w})));
@@ -541,12 +551,13 @@ function checker(text, voice) {
       panel.replaceChildren(el('p', {className:`result ${pct >= 80 ? 'ok' : 'no'}`, textContent:`%${pct} · ${pct === 100 ? 'Mükemmel!' : pct >= 80 ? 'Çok iyi.' : pct >= 50 ? 'Fena değil; kırmızı kelimeleri dinleyip tekrar dene.' : 'Anlaşılmadı; ▶ ile dinle, yavaş ve net söyle.'}`}),
         words, el('p', {className:'small muted', textContent:`Anlaşılan: „${best.h || '—'}”`}));
     };
-    rec.onerror = e => { done = true; panel.textContent = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. Düğmeye bas ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'}[e.error] || 'Kontrol yapılamadı, tekrar dene.'; };
-    rec.onend = () => { btn.textContent = '✓ Kontrol et'; if (!done) panel.textContent = 'Ses duyulmadı. Düğmeye bas ve hemen söyle.'; rec = null; };
-    try { rec.start(); } catch { panel.textContent = 'Kontrol başlatılamadı, tekrar dene.'; return; }
+    rec.onerror = e => { done = true; finish(r); if (e.error === 'aborted') return; panel.textContent = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. Düğmeye bas ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'}[e.error] || 'Kontrol yapılamadı, tekrar dene.'; };
+    rec.onend = () => { if (!done) panel.textContent = 'Ses duyulmadı. Düğmeye bas ve hemen söyle.'; done = true; finish(r); };
+    try { rec.start(); } catch { rec = null; panel.textContent = 'Kontrol başlatılamadı, tekrar dene.'; return; }
+    micStoppers.add(r._stop); r._t = setTimeout(() => { if (!done) { done = true; panel.textContent = 'Süre doldu. Düğmeye bas ve hemen söyle.'; } finish(r); }, REC_MAX_MS);
     btn.textContent = '■ Dinliyor…'; panel.textContent = 'Dinliyorum… şimdi söyle.';
   };
-  btn.onclick = () => { if (rec) { rec.stop(); return; } store.get(ASR_KEY) === '1' ? listen() : ask(); };
+  btn.onclick = () => { if (rec) { const r = rec; try { r.stop(); } catch {} r._t2 = setTimeout(() => finish(r), 1500); return; } store.get(ASR_KEY) === '1' ? listen() : ask(); };
   return {btn, panel};
 }
 // Telaffuz testi satırı: hedef metin, okunuş ve Türkçe anlam yazılı; ▶ dinle, 🎙 kaydet, ✓ kontrol et.
