@@ -1,6 +1,7 @@
 'use strict';
 // Dil Atlası — bağımlılıksız uygulama mantığı.
 // Korunan localStorage anahtarları: dil-atlasi-active, da:{task}:{lang}:{date}, dil-atlasi-timer, dil-atlasi-srs.
+// Şema sürümü dil-atlasi-surum; yeni anahtarlar: dil-atlasi-plan (haftalık plan), dil-atlasi-gunluk (günlük istatistik).
 
 const languages = {
   en:{name:'İngilizce', acc:'İngilizceyi', native:'English', code:'EN', color:'#65c8ff', voice:'en-US'},
@@ -23,6 +24,9 @@ function localDate(offset = 0) { const d = new Date(); d.setDate(d.getDate() + o
 const key = (type, lang = active, date = localDate()) => `da:${type}:${lang}:${date}`;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const isDone = (t, lang = active, date = localDate()) => store.get(key(t, lang, date)) === '1';
+const readJson = k => { try { return JSON.parse(store.get(k)); } catch { return null; } };
+// Yansız karıştırma (Fisher–Yates).
+function shuffle(a) { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function setDone(t, on = true) { on ? store.set(key(t), '1') : store.del(key(t)); if (t === 'lesson') freqAdvance(on); render(); }
 
 // ---------- En sık 1000 kelime ----------
@@ -64,6 +68,38 @@ if (!store.get(RESET_FLAG)) {
   store.set(RESET_FLAG, '1');
 }
 
+// ---------- Veri şeması ve kontrollü geçiş ----------
+// dil-atlasi-surum yerel verinin şema sürümüdür (anahtar yoksa 1). Yeni biçim gerektiğinde MIGRATIONS'a bir adım eklenir.
+// Geçişten önce tüm kayıtlar dil-atlasi-goc-yedegi anahtarına kopyalanır; bir adım hata verirse sürüm artmaz, sonraki açılışta yeniden denenir.
+// Daha yeni bir sürümün yazdığı veriye (ör. önbellekten açılan eski uygulama) dokunulmaz.
+const SCHEMA_KEY = 'dil-atlasi-surum', SCHEMA = 2;
+const MIGRATIONS = {
+  // 1 → 2: haftalık plan ve günlük istatistik anahtarları başlatılır; tekrar kartlarındaki hatırlama ölçüsü sayıya çevrilir.
+  2: () => {
+    if (!readJson('dil-atlasi-plan')) store.set('dil-atlasi-plan', JSON.stringify({v:1, langs:{}}));
+    if (!readJson('dil-atlasi-gunluk')) store.set('dil-atlasi-gunluk', JSON.stringify({v:1, d:{}}));
+    const s = readJson('dil-atlasi-srs');
+    if (s?.v === 2 && s.stats && typeof s.stats === 'object') {
+      for (const [lang, st] of Object.entries(s.stats)) { const n = Math.max(0, parseInt(st?.n, 10) || 0), ok = Math.min(n, Math.max(0, parseInt(st?.ok, 10) || 0)); s.stats[lang] = {ok, n}; }
+      store.set('dil-atlasi-srs', JSON.stringify(s));
+    }
+  }
+};
+function migrate() {
+  let v = parseInt(store.get(SCHEMA_KEY), 10) || 1;
+  if (v >= SCHEMA) return;
+  try {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if ((/^da:/.test(k) || /^dil-atlasi-/.test(k)) && !/yedegi$/.test(k)) data[k] = localStorage.getItem(k); }
+    if (Object.keys(data).length) store.set('dil-atlasi-goc-yedegi', JSON.stringify({from:v, at:new Date().toISOString(), data}));
+  } catch {}
+  while (v < SCHEMA) {
+    try { MIGRATIONS[v + 1]?.(); } catch { return; }
+    v++; store.set(SCHEMA_KEY, String(v));
+  }
+}
+migrate();
+
 let active = languages[store.get('dil-atlasi-active')] ? store.get('dil-atlasi-active') : 'en';
 let tab = TABS.includes(store.get('dil-atlasi-tab')) ? store.get('dil-atlasi-tab') : 'bugun';
 let openStep = null;
@@ -71,11 +107,14 @@ let openStep = null;
 // ---------- Ders içeriği ----------
 const lessonsFor = (lang = active) => window.LESSONS?.[lang] || [];
 // Ders günü = bu dilde bugünden önce çalışılan gün sayısı + 1. Bugün aşama işaretlemek dersi değiştirmez.
+// Geçmiş gün içinde değişmediği için dil+tarih başına bir kez hesaplanır; geçmişi değiştiren işlemler (yedek, sıfırlama) önbelleği temizler.
+const dayCache = new Map();
 function getLessonDay(lang = active) {
-  let count = 0;
-  for (let i = 1; i <= 365; i++) if (tasks.some(t => isDone(t, lang, localDate(-i)))) count++;
-  return Math.max(1, Math.min(count + 1, lessonsFor(lang).length));
+  const ck = `${lang}|${localDate()}`;
+  if (!dayCache.has(ck)) { let count = 0; for (let i = 1; i <= 365; i++) if (tasks.some(t => isDone(t, lang, localDate(-i)))) count++; dayCache.set(ck, count); }
+  return Math.max(1, Math.min(dayCache.get(ck) + 1, lessonsFor(lang).length));
 }
+window.addEventListener('storage', () => dayCache.clear());
 const todayLesson = () => lessonsFor()[getLessonDay() - 1];
 const emojiFor = (li, wi) => window.EMOJI?.[`${li}:${wi}`] || '';
 
@@ -153,6 +192,35 @@ function gradeCard(id, box, ok) {
   // Harcanan süre yerine kalıcılığı ölç: 7+ gün aralıkla dönen kartlarda hatırlama oranı.
   if (box >= 2) { const lang = id.slice(0, 2), st = (s.stats ||= {})[lang] ||= {ok:0, n:0}; st.n++; if (ok) st.ok++; }
   s.cards[id] = {b, d: localDate(ok ? INTERVALS[b] : 1)}; saveSrs(s);
+  logAdd(id.slice(0, 2), 'c'); if (ok) logAdd(id.slice(0, 2), 'ok');
+}
+
+// ---------- Günlük istatistik ----------
+// dil-atlasi-gunluk = {v:1, d:{"YYYY-MM-DD": {en: {c, ok, m}}}} — c: değerlendirilen kart, ok: bilinen kart, m: tamamlanan odak dakikası.
+// Aşama sayıları ayrıca saklanmaz, da: anahtarlarından hesaplanır. LOG_DAYS günden eski kayıtlar silinir.
+const LOG_KEY = 'dil-atlasi-gunluk', LOG_DAYS = 400, LOG_FIELDS = ['c', 'ok', 'm'];
+function loadLog() { const v = readJson(LOG_KEY); return v?.v === 1 && v.d && typeof v.d === 'object' ? v : {v:1, d:{}}; }
+function saveLog(l) { const min = localDate(-LOG_DAYS); Object.keys(l.d).forEach(d => { if (!DATE_RE.test(d) || d < min) delete l.d[d]; }); store.set(LOG_KEY, JSON.stringify(l)); }
+function logAdd(lang, field, n = 1) { const l = loadLog(), x = ((l.d[localDate()] ||= {})[lang] ||= {}); x[field] = (x[field] || 0) + n; saveLog(l); }
+const logGet = (log, date, lang) => { const x = log.d[date]?.[lang] || {}; return {c: x.c || 0, ok: x.ok || 0, m: x.m || 0}; };
+
+// ---------- Haftalık plan ----------
+// dil-atlasi-plan = {v:1, langs:{en:{days:[1,3,5], goal:4}}} — days: haftanın günleri (0 = Pazar), goal: günlük hedef aşama sayısı (2–4).
+// Plan yalnızca hatırlatır; planda olmayan günde de çalışılabilir, ders günü hesabı değişmez.
+const PLAN_KEY = 'dil-atlasi-plan', WEEKDAYS = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'], GOALS = [2, 3, 4];
+function loadPlan() { const v = readJson(PLAN_KEY); return v?.v === 1 && v.langs && typeof v.langs === 'object' ? v : {v:1, langs:{}}; }
+function cleanPlan(p) { const days = [...new Set(Array.isArray(p?.days) ? p.days.filter(d => Number.isInteger(d) && d >= 0 && d <= 6) : [])].sort((a, b) => a - b); return {days, goal: GOALS.includes(p?.goal) ? p.goal : 4}; }
+const planFor = (lang = active) => cleanPlan(loadPlan().langs[lang]);
+function savePlan(lang, p) { const all = loadPlan(); all.langs[lang] = cleanPlan(p); store.set(PLAN_KEY, JSON.stringify(all)); }
+const todayDow = () => new Date().getDay();
+const plannedToday = lang => planFor(lang).days.includes(todayDow());
+const stepsOn = (date, lang = active) => tasks.filter(t => isDone(t, lang, date)).length;
+// Pazartesi başlayan hafta: weeksAgo = 0 bu hafta (bugüne kadar), 1 geçen hafta (7 gün).
+function weekDates(weeksAgo = 0) { const back = (todayDow() + 6) % 7 + weeksAgo * 7, n = weeksAgo ? 7 : back + 1; return Array.from({length:n}, (_, i) => localDate(i - back)); }
+function weekSummary(lang, dates, log = loadLog()) {
+  const goal = planFor(lang).goal, r = {days:0, met:0, steps:0, c:0, ok:0, m:0};
+  dates.forEach(d => { const n = stepsOn(d, lang), x = logGet(log, d, lang); if (n || x.c) r.days++; if (n >= goal) r.met++; r.steps += n; r.c += x.c; r.ok += x.ok; r.m += x.m; });
+  return r;
 }
 const learnedCount = (lang = active) => Object.entries(loadSrs().cards).filter(([id, c]) => id.startsWith(lang + ':') && c.b >= 2).length;
 
@@ -160,8 +228,9 @@ const learnedCount = (lang = active) => Object.entries(loadSrs().cards).filter((
 function renderLangs() {
   const nav = $('#langs'); nav.replaceChildren();
   Object.entries(languages).forEach(([id, l]) => {
-    const b = el('button', {type:'button', className:'lang-chip', onclick: () => switchLang(id)}, el('span', {textContent:l.code}), el('span', {className:'full', textContent:l.name}));
-    b.style.setProperty('--c', l.color); b.setAttribute('aria-pressed', id === active); b.setAttribute('aria-label', l.name);
+    const planned = plannedToday(id);
+    const b = el('button', {type:'button', className:`lang-chip${planned ? ' planned' : ''}`, onclick: () => switchLang(id)}, el('span', {textContent:l.code}), el('span', {className:'full', textContent:l.name}));
+    b.style.setProperty('--c', l.color); b.setAttribute('aria-pressed', id === active); b.setAttribute('aria-label', planned ? `${l.name}, bugün planda` : l.name);
     nav.append(b);
   });
 }
@@ -191,10 +260,11 @@ function renderToday() {
   const doneSteps = STEPS.filter(s => isDone(s.task) || (s.task === 'review' && !due.length)).length;
   $('#todayBar').style.width = `${doneSteps / STEPS.length * 100}%`;
   $('#todayHint').textContent = doneSteps === STEPS.length ? 'Bugünlük tamam. Akşam İzle sekmesinden kısa bir bölüm açabilirsin.' : 'Adımları sırayla yap; her biri 5–10 dakika. Gün içinde bölebilirsin.';
+  $('#planHint').textContent = planHint();
   if (openStep === null) openStep = STEPS.findIndex(s => !(isDone(s.task) || (s.task === 'review' && !due.length)));
   const box = $('#steps'); box.replaceChildren();
   STEPS.forEach((s, i) => {
-    const done = isDone(s.task) || (s.task === 'review' && !due.length && getLessonDay() > 1), open = i === openStep;
+    const done = isDone(s.task) || (s.task === 'review' && !due.length), open = i === openStep;
     const head = el('button', {type:'button', className:'step-head', onclick: () => { openStep = open ? -1 : i; renderToday(); }},
       el('span', {className:'step-num', textContent: done ? '✓' : i + 1}),
       el('span', {}, el('span', {className:'step-title', textContent:s.title}), el('span', {className:'step-sub', textContent:s.sub})),
@@ -204,6 +274,13 @@ function renderToday() {
     if (open) wrap.append(el('div', {className:'step-body'}, ...stepBody(s, lesson, due, i)));
     box.append(wrap);
   });
+}
+function planHint() {
+  const l = languages[active], p = planFor();
+  if (p.days.includes(todayDow())) return `Plan: bugün ${l.name} günü · hedef ${p.goal} aşama · bu hafta hedefe ulaşılan gün ${weekSummary(active, weekDates()).met}/${p.days.length}.`;
+  const others = Object.keys(languages).filter(plannedToday).map(id => languages[id].name);
+  if (!p.days.length && !others.length) return 'İstersen İlerleme sekmesinden bu dil için haftalık plan kurabilirsin.';
+  return `Bugün ${l.name} planında yok${others.length ? `; planlı: ${others.join(', ')}` : ''}. İstersen yine de çalışabilirsin.`;
 }
 function doneRow(task, next) {
   const done = isDone(task);
@@ -274,7 +351,7 @@ function lessonBody(lesson, voice, i) {
 function selfQuiz(items, voice) {
   const box = el('div');
   const start = () => {
-    let queue = items.map(x => x).sort(() => Math.random() - .5), right = 0;
+    let queue = shuffle(items), right = 0;
     const draw = () => {
       if (!queue.length) { box.replaceChildren(el('p', {className:'result ok', role:'status', textContent:`Tamam! ${right} öğeyi hatırladın.`}), el('button', {type:'button', className:'btn secondary', textContent:'Yeniden', onclick: start})); return; }
       const [t, tr, pron, emo] = queue[0], card = el('div', {className:'flash'});
@@ -298,7 +375,9 @@ function selfQuiz(items, voice) {
 function sentenceBuilder(sentences, voice) {
   let idx = 0; const box = el('div');
   const draw = () => {
-    const [target, tr] = sentences[idx], tokens = target.split(/\s+/), order = tokens.map((t, k) => k).sort(() => Math.random() - .5);
+    const [target, tr] = sentences[idx], tokens = target.split(/\s+/);
+    // Karışık sıra, doğru cümleyle aynı çıkmasın.
+    let order = shuffle(tokens.map((t, k) => k)); for (let n = 0; n < 10 && tokens.length > 1 && order.every((k, p) => tokens[k] === tokens[p]); n++) order = shuffle(order);
     const picked = [], tgt = el('div', {className:'build-target', ariaLabel:'Kurduğun cümle'}), pool = el('div', {className:'build-pool'}), res = el('div', {className:'result', role:'status'});
     const update = () => { tgt.replaceChildren(...picked.map((k, p) => el('button', {type:'button', className:'chip', textContent:tokens[k], onclick: () => { picked.splice(p, 1); update(); }}))); pool.replaceChildren(...order.filter(k => !picked.includes(k)).map(k => el('button', {type:'button', className:'chip', textContent:tokens[k], onclick: () => { picked.push(k); update(); if (picked.length === tokens.length) check(); }}))); };
     const check = () => { const ok = picked.map(k => tokens[k]).join(' ') === target; res.className = `result ${ok ? 'ok' : 'no'}`; res.textContent = ok ? `Doğru! ${idx < sentences.length - 1 ? 'Sıradakine geç.' : 'Hepsi bitti.'}` : `Tam değil. Doğrusu: ${target}`; speak(target, voice); };
@@ -335,12 +414,12 @@ function noteForm() {
 function speakBody(lesson, voice, i) {
   const prompt = coachPrompt(lesson), q = encodeURIComponent(prompt), status = el('span', {className:'small muted', role:'status'});
   const say = el('div', {className:'items'}, ...lesson.p.map(([t, tr]) => {
-    const d = el('details', {className:'item'}); d.append(el('summary', {textContent:tr}), el('div', {className:'say-row'}, el('strong', {textContent:t}), speakBtn(t, voice)));
+    const d = el('details', {className:'item'}); d.append(el('summary', {textContent:tr}), el('div', {className:'say-row'}, el('strong', {textContent:t}), speakBtn(t, voice)), canRecord() ? recorder(t, voice) : '');
     return d;
   }));
   return [
     el('div', {className:'eyebrow', textContent:'1 · Kendi kendine'}),
-    el('p', {className:'small', textContent:'Türkçesini oku, cümleyi yüksek sesle söyle, sonra dokunup kontrol et.'}), say,
+    el('p', {className:'small', textContent:'Türkçesini oku, cümleyi yüksek sesle söyle, sonra dokunup kontrol et.' + (canRecord() ? ' 🎙 ile kendini kaydedip doğrusuyla karşılaştırabilirsin: mikrofon yalnızca dokununca açılır, kayıt bu cihazda geçici olarak durur, saklanmaz ve hiçbir yere gönderilmez.' : '')}), say,
     el('div', {className:'eyebrow mt', textContent:'2 · Yapay zekâyla sesli sohbet (isteğe bağlı)'}),
     el('p', {className:'small', textContent:'"ChatGPT\'de aç" bugünkü dersle hazırlanmış mesajı ChatGPT\'ye gönderir ve öğretmen gibi yazmaya başlar. Konuşarak devam etmek için sağ alttaki ses dalgası simgesine dokun. "Claude\'da aç" mesajı kopyalar ve Claude\'u açar; mesajı yapıştırıp gönder, sonra ses simgesine dokun. Mesajda kişisel bilgin yok; yalnızca bugünkü ders gider. Hesap gerekir.'}),
     el('div', {className:'step-actions'},
@@ -353,6 +432,41 @@ function speakBody(lesson, voice, i) {
     noteForm(),
     doneRow('speak', -1)
   ];
+}
+
+// ---------- Telaffuz kaydı (mikrofon) ----------
+// İzin yalnızca kullanıcı dokununca istenir. Kayıt bellekte kalır (blob), saklanmaz, gönderilmez; kayıt bitince mikrofon kapatılır.
+// Aynı anda tek kayıt tutulur: yenisi yapılınca öncekinin adresi silinir. Bir kayıt en fazla REC_MAX_MS sürer.
+const REC_MAX_MS = 10000;
+const canRecord = () => !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+let lastRec = null; // {url, player}
+function recorder(text, voice) {
+  const btn = el('button', {type:'button', className:'btn secondary', textContent:'🎙 Kendini kaydet'});
+  const status = el('span', {className:'small muted', role:'status'}), player = el('div', {className:'rec-player'});
+  let rec = null, stream = null, timer = null;
+  const release = () => { clearTimeout(timer); stream?.getTracks().forEach(t => t.stop()); stream = null; };
+  btn.onclick = async () => {
+    if (rec?.state === 'recording') { rec.stop(); return; }
+    try { stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch (e) { status.textContent = e?.name === 'NotAllowedError' ? 'Mikrofon izni verilmedi. İstersen tarayıcı ayarlarından izin verebilirsin.' : 'Mikrofon açılamadı.'; return; }
+    const chunks = [];
+    try { rec = new MediaRecorder(stream); } catch { release(); status.textContent = 'Bu tarayıcı ses kaydını desteklemiyor.'; return; }
+    rec.ondataavailable = e => { if (e.data?.size) chunks.push(e.data); };
+    rec.onstop = () => {
+      release(); btn.textContent = '🎙 Yeniden kaydet';
+      if (lastRec) { URL.revokeObjectURL(lastRec.url); lastRec.player.replaceChildren(); }
+      const url = URL.createObjectURL(new Blob(chunks, {type: rec.mimeType || 'audio/webm'})); lastRec = {url, player};
+      const audio = el('audio', {controls:true, preload:'auto', src:url, ariaLabel:'Senin kaydın'});
+      const both = () => { window.speechSynthesis?.cancel(); audio.currentTime = 0; audio.onended = () => { audio.onended = null; speak(text, voice); }; audio.play().catch(() => {}); };
+      player.replaceChildren(audio, el('div', {className:'row'},
+        el('button', {type:'button', className:'btn secondary', textContent:'▶ Ben, sonra doğrusu', onclick: both}),
+        el('button', {type:'button', className:'btn secondary', textContent:'▶ Doğrusu', onclick: () => speak(text, voice)})));
+      status.textContent = 'Kaydını dinle ve doğrusuyla karşılaştır. Farklı duyduğun heceyi tekrar söyle.';
+    };
+    rec.start(); btn.textContent = '■ Kaydı bitir'; status.textContent = `Kaydediliyor… cümleyi söyle (en fazla ${REC_MAX_MS / 1000} sn).`;
+    timer = setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, REC_MAX_MS);
+  };
+  return el('div', {className:'rec'}, btn, status, player);
 }
 
 // ---------- Dinle: eller serbest ses çalışması ----------
@@ -427,9 +541,37 @@ function renderProgress() {
   $('#statDays').textContent = days; $('#statStreak').textContent = getStreak(); $('#statCards').textContent = learnedCount();
   const rs = loadSrs().stats?.[active];
   $('#retention').textContent = rs?.n ? `7+ gün sonra hatırlama: %${Math.round(rs.ok / rs.n * 100)} (${rs.n} kart). Asıl ilerleme ölçün bu; süre değil.` : 'Uzun süreli hatırlama, kartlar 7+ gün aralıkla dönmeye başlayınca burada ölçülür.';
-  const h = $('#history'); h.replaceChildren();
-  for (let i = 27; i >= 0; i--) { const n = tasks.filter(t => isDone(t, active, localDate(-i))).length; h.append(el('span', {className:`history-day ${n === 4 ? 'full' : n ? 'some' : ''}`, title:`${localDate(-i)} · ${n}/4`})); }
+  const h = $('#history'); h.replaceChildren(); let studied = 0;
+  for (let i = 27; i >= 0; i--) { const n = stepsOn(localDate(-i)); if (n) studied++; h.append(el('span', {className:`history-day ${n === 4 ? 'full' : n ? 'some' : ''}`, title:`${localDate(-i)} · ${n}/4`})); }
+  h.setAttribute('aria-label', `Son 28 gün: ${studied} gün çalışıldı`);
   $('#lessonList').replaceChildren(...lessonsFor().map((ls, k) => el('li', {className: k < day - 1 ? 'done' : k === day - 1 ? 'current' : '', textContent:ls.t})));
+}
+
+function renderPlan() {
+  const l = languages[active], p = planFor();
+  $('#planTitle').textContent = `${l.name} haftalık planı`;
+  document.querySelectorAll('#planDays input').forEach(i => { i.checked = p.days.includes(+i.value); });
+  document.querySelectorAll('#planGoal input').forEach(i => { i.checked = +i.value === p.goal; });
+  const w = weekSummary(active, weekDates());
+  $('#planStatus').textContent = p.days.length ? `Haftada ${p.days.length} gün, günde en az ${p.goal} aşama. Bu hafta hedefe ulaşılan gün: ${w.met}/${p.days.length}.` : 'Henüz gün seçilmedi; plan yokken uygulama hatırlatma yapmaz.';
+  const fr = planFor('fr').days, it = planFor('it').days, both = fr.filter(d => it.includes(d));
+  $('#planWarn').textContent = (active === 'fr' || active === 'it') && both.length ? `Fransızca ve İtalyanca aynı günlerde (${both.map(d => WEEKDAYS[d]).join(', ')}). Benzer diller karışabilir; mümkünse farklı günlere koy.` : '';
+}
+document.querySelectorAll('#planDays input, #planGoal input').forEach(i => { i.onchange = () => {
+  savePlan(active, {days:[...document.querySelectorAll('#planDays input:checked')].map(x => +x.value), goal:+(document.querySelector('#planGoal input:checked')?.value || 4)});
+  renderLangs(); renderToday(); renderPlan(); renderStats();
+}; });
+function renderStats() {
+  const log = loadLog(), today = localDate(), ids = Object.keys(languages), pct = (ok, c) => c ? `%${Math.round(ok / c * 100)}` : '—';
+  const t = ids.reduce((a, id) => { const x = logGet(log, today, id); a.steps += stepsOn(today, id); a.c += x.c; a.ok += x.ok; a.m += x.m; return a; }, {steps:0, c:0, ok:0, m:0});
+  $('#statsToday').textContent = t.steps || t.c || t.m ? `Bugün: ${t.steps} aşama · ${t.c} kart${t.c ? ` (${pct(t.ok, t.c)} bildin)` : ''}${t.m ? ` · ${t.m} dk odak` : ''}.` : 'Bugün henüz çalışma yok.';
+  const week = weekDates(), rows = ids.map(id => ({id, ...weekSummary(id, week, log), plan: planFor(id).days.length}));
+  const sum = rows.reduce((a, r) => { ['days', 'steps', 'c', 'ok', 'm'].forEach(f => { a[f] += r[f]; }); return a; }, {days:0, steps:0, c:0, ok:0, m:0});
+  const cell = (tag, text) => el(tag, {textContent:text});
+  $('#statsBody').replaceChildren(...rows.map(r => { const tr = el('tr', {className: r.id === active ? 'current' : ''}, el('th', {scope:'row', textContent:languages[r.id].name}), cell('td', r.plan ? `${r.days}/${r.plan}` : r.days), cell('td', r.steps), cell('td', r.c), cell('td', pct(r.ok, r.c))); return tr; }));
+  $('#statsFoot').replaceChildren(el('tr', {}, el('th', {scope:'row', textContent:'Toplam'}), cell('td', sum.days), cell('td', sum.steps), cell('td', sum.c), cell('td', pct(sum.ok, sum.c))));
+  const last = ids.reduce((a, id) => { const r = weekSummary(id, weekDates(1), log); a.steps += r.steps; a.c += r.c; return a; }, {steps:0, c:0});
+  $('#statsLast').textContent = `Karşılaştırma — geçen hafta: ${last.steps} aşama, ${last.c} kart.${sum.m ? ` Bu hafta ${sum.m} dk odak sayacı.` : ''}`;
 }
 
 function renderVoiceSettings() {
@@ -456,12 +598,13 @@ function render() {
   renderLangs(); renderToday();
   renderRes('#audioRes', window.MEDIA?.[active]?.audio); renderRes('#videoRes', window.MEDIA?.[active]?.video);
   if (!drill.playing) { $('#drillInfo').textContent = `Bugün: ${drillItems().length} ifade · yaklaşık ${Math.ceil(drillItems().length * 12 / 60)} dakika. Ekranın açık kalması gerekir.`; }
-  renderProgress(); renderVoiceSettings(); renderFreqCard();
+  renderProgress(); renderPlan(); renderStats(); renderVoiceSettings(); renderFreqCard();
 }
 
 // ---------- Odak sayacı ----------
 const durations = [25, 45, 60];
-let duration = durations.includes(+store.get('dil-atlasi-timer')) ? +store.get('dil-atlasi-timer') : 25, seconds = duration * 60, timerId = null;
+// Kalan süre bitiş anından hesaplanır; telefon kilitlenince ya da sekme arka plana geçince sayaç kaymaz.
+let duration = durations.includes(+store.get('dil-atlasi-timer')) ? +store.get('dil-atlasi-timer') : 25, seconds = duration * 60, timerId = null, deadline = 0;
 function updateTimer() {
   const m = String(Math.floor(seconds / 60)).padStart(2, '0'), s = String(seconds % 60).padStart(2, '0');
   $('#timerDisplay').textContent = `${m}:${s}`; document.title = timerId ? `${m}:${s} · Dil Atlası` : 'Dil Atlası';
@@ -470,8 +613,15 @@ function updateTimer() {
 function resetTimer() { clearInterval(timerId); timerId = null; seconds = duration * 60; $('#timerToggle').textContent = 'Başlat'; updateTimer(); }
 $('#timerToggle').onclick = () => {
   if (seconds <= 0) resetTimer();
-  if (timerId) { clearInterval(timerId); timerId = null; $('#timerToggle').textContent = 'Devam et'; }
-  else { timerId = setInterval(() => { seconds--; updateTimer(); if (seconds <= 0) { clearInterval(timerId); timerId = null; $('#timerToggle').textContent = 'Yeniden başlat'; updateTimer(); speak('Çalışma tamamlandı', 'tr-TR'); } }, 1000); $('#timerToggle').textContent = 'Duraklat'; }
+  if (timerId) { clearInterval(timerId); timerId = null; seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); $('#timerToggle').textContent = 'Devam et'; }
+  else {
+    deadline = Date.now() + seconds * 1000;
+    timerId = setInterval(() => {
+      seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000)); updateTimer();
+      if (seconds <= 0) { clearInterval(timerId); timerId = null; $('#timerToggle').textContent = 'Yeniden başlat'; updateTimer(); logAdd(active, 'm', duration); renderStats(); speak('Çalışma tamamlandı', 'tr-TR'); }
+    }, 500);
+    $('#timerToggle').textContent = 'Duraklat';
+  }
   updateTimer();
 };
 $('#timerReset').onclick = resetTimer;
@@ -483,7 +633,8 @@ function setDataStatus(text, isError = false) { const e = $('#dataStatus'); e.te
 $('#exportData').onclick = () => {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (TASK_KEY.test(k) && store.get(k) === '1') data[k] = '1'; }
-  const srs = loadSrs().cards, backup = {app:'dil-atlasi', schemaVersion:1, exportedAt:new Date().toISOString(), settings:{active, timer:duration}, tasks:data, srs, srsVersion:2, notes:loadNotes().items, freq: (() => { try { return JSON.parse(store.get(FREQ_KEY)) || {}; } catch { return {}; } })()};
+  // Yedek biçimi 2: 1'e ek olarak hatırlama ölçüsü, haftalık plan ve günlük istatistik. 1 ve 2 geri yüklenebilir.
+  const s = loadSrs(), srs = s.cards, backup = {app:'dil-atlasi', schemaVersion:2, exportedAt:new Date().toISOString(), settings:{active, timer:duration, rate:rateFactor()}, tasks:data, srs, srsVersion:2, srsStats:s.stats || {}, notes:loadNotes().items, freq: readJson(FREQ_KEY) || {}, plan:loadPlan().langs, log:loadLog().d};
   const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'}));
   const a = el('a', {href:url, download:`dil-atlasi-yedek-${localDate()}.json`}); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   setDataStatus(`${Object.keys(data).length} görev kaydı ve ${Object.keys(srs).length} tekrar kartı indirildi.`);
@@ -494,7 +645,7 @@ $('#importFile').onchange = async e => {
   try {
     if (file.size > 2_000_000) throw new Error('Dosya çok büyük.');
     let backup; try { backup = JSON.parse(await file.text()); } catch { throw new Error('Dosya okunamadı; geçerli bir JSON değil.'); }
-    if (backup?.app !== 'dil-atlasi' || backup.schemaVersion !== 1 || typeof backup.tasks !== 'object' || backup.tasks === null) throw new Error('Bu dosya bir Dil Atlası yedeği değil veya sürümü desteklenmiyor.');
+    if (backup?.app !== 'dil-atlasi' || ![1, 2].includes(backup.schemaVersion) || typeof backup.tasks !== 'object' || backup.tasks === null) throw new Error('Bu dosya bir Dil Atlası yedeği değil veya sürümü desteklenmiyor.');
     const keys = Object.keys(backup.tasks).filter(k => TASK_KEY.test(k) && backup.tasks[k] === '1'), fresh = keys.filter(k => store.get(k) !== '1').length;
     if (!confirm(`Yedekte ${keys.length} görev kaydı var; ${fresh} tanesi bu cihazda yeni.\nMevcut kayıtlar silinmeyecek. Devam edilsin mi?`)) { setDataStatus('Geri yükleme iptal edildi.'); return; }
     keys.forEach(k => store.set(k, '1'));
@@ -502,6 +653,8 @@ $('#importFile').onchange = async e => {
     if (backup.srsVersion === 2 && backup.srs && typeof backup.srs === 'object') {
       const s = loadSrs();
       for (const [id, c] of Object.entries(backup.srs)) { if (!CARD_ID.test(id) || !c || !Number.isInteger(c.b) || c.b < 0 || c.b >= INTERVALS.length || !DATE.test(c.d)) continue; if (!s.cards[id] || c.b > s.cards[id].b) s.cards[id] = {b:c.b, d:c.d}; }
+      // Hatırlama ölçüsü: dil başına daha çok ölçüm içeren taraf kazanır.
+      if (backup.srsStats && typeof backup.srsStats === 'object') for (const lang of Object.keys(languages)) { const x = backup.srsStats[lang]; if (!x || !Number.isInteger(x.n) || !Number.isInteger(x.ok) || x.ok < 0 || x.ok > x.n || x.n > 1e6) continue; if (x.n > (s.stats?.[lang]?.n || 0)) (s.stats ||= {})[lang] = {ok:x.ok, n:x.n}; }
       saveSrs(s);
     }
     if (backup.freq && typeof backup.freq === 'object') {
@@ -512,10 +665,18 @@ $('#importFile').onchange = async e => {
       for (const [id, x] of Object.entries(backup.notes)) { if (!/^(en|fr|it|de):n:[a-z0-9]{4,14}$/.test(id) || !x || !DATE.test(x.d) || !cleanText(x.t)) continue; if (!n.items[id]) n.items[id] = {t:cleanText(x.t), tr:cleanText(x.tr), d:x.d}; }
       saveNotes(n);
     }
+    // Plan: bu cihazda plan yoksa yedektekini al. Günlük istatistik: her alan için büyük değer kalır.
+    if (backup.plan && typeof backup.plan === 'object') for (const lang of Object.keys(languages)) { if (backup.plan[lang] && !planFor(lang).days.length) { const p = cleanPlan(backup.plan[lang]); if (p.days.length) savePlan(lang, p); } }
+    if (backup.log && typeof backup.log === 'object') {
+      const l = loadLog();
+      for (const [d, day] of Object.entries(backup.log)) { if (!DATE_RE.test(d) || !day || typeof day !== 'object') continue; for (const lang of Object.keys(languages)) { const x = day[lang]; if (!x || typeof x !== 'object') continue; const cur = ((l.d[d] ||= {})[lang] ||= {}); LOG_FIELDS.forEach(f => { const v = x[f]; if (Number.isInteger(v) && v > 0 && v < 1e5 && v > (cur[f] || 0)) cur[f] = v; }); if (!Object.keys(cur).length) delete l.d[d][lang]; } if (!Object.keys(l.d[d] || {}).length) delete l.d[d]; }
+      saveLog(l);
+    }
     const st = backup.settings || {};
+    if ([0.8, 1, 1.15].includes(st.rate)) store.set(RATE_KEY, String(st.rate));
     if (languages[st.active]) { active = st.active; store.set('dil-atlasi-active', active); }
     if (durations.includes(st.timer) && !timerId) { duration = st.timer; store.set('dil-atlasi-timer', String(duration)); resetTimer(); }
-    render(); setDataStatus(`${fresh} yeni görev kaydı eklendi.`);
+    dayCache.clear(); render(); setDataStatus(`${fresh} yeni görev kaydı eklendi.`);
   } catch (err) { setDataStatus(err.message || 'Geri yükleme başarısız.', true); }
 };
 
@@ -523,13 +684,14 @@ $('#importFile').onchange = async e => {
 // Yalnızca seçili dilin aşama kayıtlarını ve tekrar kartlarını siler (kullanıcı onayıyla).
 $('#resetLang').onclick = () => {
   const l = languages[active], prefix = new RegExp(`^da:(${tasks.join('|')}):${active}:`);
-  if (!confirm(`${l.name} için tüm çalışma geçmişi ve tekrar kartları silinecek; ders 1'den başlayacaksın.\nDiğer diller etkilenmez. Emin misin?`)) return;
+  if (!confirm(`${l.name} için tüm çalışma geçmişi, tekrar kartları ve istatistikleri silinecek; ders 1'den başlayacaksın.\nDiğer diller etkilenmez. Emin misin?`)) return;
   const keys = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (prefix.test(k)) keys.push(k); }
   keys.forEach(store.del);
   const s = loadSrs(); Object.keys(s.cards).forEach(id => { if (id.startsWith(active + ':')) delete s.cards[id]; }); saveSrs(s);
   const n = loadNotes(); Object.keys(n.items).forEach(id => { if (id.startsWith(active + ':')) delete n.items[id]; }); saveNotes(n);
   saveFreqState(active, {on: freqState().on, done: 0, last: ''});
-  openStep = null; render(); switchTab('bugun');
+  const l2 = loadLog(); Object.values(l2.d).forEach(day => { delete day[active]; }); saveLog(l2);
+  dayCache.clear(); openStep = null; render(); switchTab('bugun');
 };
 
 // ---------- Kurulum, tarayıcı ajan araçları, Service Worker ----------
@@ -542,9 +704,9 @@ function registerAgentTools() {
   const ctx = document.modelContext; if (!ctx?.registerTool) return;
   const reg = t => { try { void Promise.resolve(ctx.registerTool(t)).catch(() => {}); } catch {} };
   reg({name:'get_today_language_plan', title:'Bugünün dil planını oku', description:'Seçili dil, bugünkü ders ve tamamlanan aşamaları döndürür. Hiçbir veriyi değiştirmez.', inputSchema:{type:'object', properties:{}, additionalProperties:false}, annotations:{readOnlyHint:true, untrustedContentHint:false},
-    execute() { const done = tasks.filter(t => isDone(t)); return {language:active, languageName:languages[active].name, date:localDate(), lesson:todayLesson().t, lessonDay:getLessonDay(), completedTasks:done, totalTasks:tasks.length, progressPercent:Math.round(done.length / tasks.length * 100)}; }});
+    execute() { const done = tasks.filter(t => isDone(t)); return {language:active, languageName:languages[active].name, date:localDate(), lesson:todayLesson().t, lessonDay:getLessonDay(), completedTasks:done, totalTasks:tasks.length, progressPercent:Math.round(done.length / tasks.length * 100), plannedToday:plannedToday(active), dailyGoal:planFor().goal}; }});
   reg({name:'set_language_task_status', title:'Dil görevini güncelle', description:'Belirtilen dilde bugünün tekrar, ders, dinleme veya konuşma aşamasını tamamlandı ya da bekliyor olarak işaretler.', inputSchema:{type:'object', properties:{language:{type:'string', enum:Object.keys(languages)}, task:{type:'string', enum:tasks}, completed:{type:'boolean'}}, required:['language', 'task', 'completed'], additionalProperties:false}, annotations:{readOnlyHint:false, untrustedContentHint:false},
-    execute(input) { if (!input || !languages[input.language] || !tasks.includes(input.task) || typeof input.completed !== 'boolean') throw new Error('Geçersiz dil, görev veya durum.'); active = input.language; store.set('dil-atlasi-active', active); input.completed ? store.set(key(input.task), '1') : store.del(key(input.task)); render(); return {language:active, task:input.task, completed:input.completed, date:localDate()}; }});
+    execute(input) { if (!input || !languages[input.language] || !tasks.includes(input.task) || typeof input.completed !== 'boolean') throw new Error('Geçersiz dil, görev veya durum.'); if (input.language !== active) switchLang(input.language); if (isDone(input.task) !== input.completed) setDone(input.task, input.completed); return {language:active, task:input.task, completed:input.completed, date:localDate()}; }});
 }
 
 switchTab(tab); render(); updateTimer(); registerAgentTools();

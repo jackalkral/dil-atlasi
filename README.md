@@ -13,12 +13,13 @@ Canlı adres: https://jackalkral.github.io/dil-atlasi/
 | **Bugün** | İşte kısa molalarda | 4 aşamalı yol: ① Tekrar kartları ② Kelimeler + cümleler + cümle kurma ③ Dinle ve tekrar et ④ Konuş (kendi kendine + ChatGPT/Claude sesli sohbet) |
 | **Dinle** | Köpek gezdirirken, yolda | Eller serbest ses çalışması: Türkçesi → ara (sen söyle) → hedef dil ×2; podcast ve ses kursları |
 | **İzle** | Akşam TV karşısında | Seviyeye göre video/dizi önerileri, hedef dilde altyazı rehberi |
-| **İlerleme** | — | Seri, 28 gün, 30 günlük rota, odak sayacı, yöntem, yedekleme |
+| **İlerleme** | — | Günlük/haftalık özet, dil başına haftalık plan ve hedef, seri, 28 gün, 30 günlük rota, odak sayacı, yöntem, yedekleme |
 
 - Her dilde aynı 30 konu (selamlaşma → kendini anlatma); her derste 8 kelime ve 5 cümle. Kelimelerin Türkçe harflerle okunuşu var (BÜYÜK hece vurgulu; Fransızcada ñ = genizden).
 - Ses: cihazdaki en doğal ses (Premium/Enhanced/Natural/Google) otomatik seçilir; İlerleme → Ses ve telaffuz'dan ses ve hız değiştirilebilir, doğal ses indirme rehberi oradadır.
 - Aralıklı tekrar: önceki derslerin kelime ve cümleleri kart olur; bilinen kart 1 → 3 → 7 → 14 → 30 gün sonra döner.
-- Hangi dili ne zaman çalışacağına sen karar verirsin. Fransızca ile İtalyancayı aynı gün çalışmamak önerilir (benzer diller karışır).
+- Konuş adımında 🎙 ile kendini kaydedip doğrusuyla karşılaştırabilirsin; kayıt cihazda geçici olarak durur, saklanmaz ve gönderilmez.
+- Hangi dili ne zaman çalışacağına sen karar verirsin; istersen İlerleme'den dil başına haftalık plan ve günlük hedef kurarsın (yalnızca hatırlatır). Fransızca ile İtalyancayı aynı gün çalışmamak önerilir (benzer diller karışır).
 
 ## Dosya yapısı
 
@@ -68,6 +69,10 @@ Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 - Tek seferlik sıfırlama (Eylül 2026): `dil-atlasi-sifirlama-2026-09` bayrağı; silinen kayıtlar `dil-atlasi-sifirlama-yedegi` anahtarında JSON olarak durur.
 - İlerleme sekmesindeki **Bu dilde baştan başla** yalnızca seçili dilin kayıtlarını ve kartlarını siler.
 - Tekrar kartları: `dil-atlasi-srs` — `{ v: 2, cards: { "en:0:w3": { b: kutu, d: "YYYY-MM-DD" } } }` (w = kelime, s = cümle). Eski v1 kartlar `dil-atlasi-srs-v1` anahtarında saklanır.
+
+- Haftalık plan: `dil-atlasi-plan` — `{ v: 1, langs: { "en": { days: [1, 3, 5], goal: 3 } } }` (0 = Pazar, hedef = günlük aşama sayısı)
+- Günlük istatistik: `dil-atlasi-gunluk` — `{ v: 1, d: { "YYYY-MM-DD": { "en": { c: kart, ok: bilinen, m: odak dakikası } } } }`, son 400 gün
+- Şema sürümü: `dil-atlasi-surum` (şu an `2`). Uygulama açılışta eksik geçiş adımlarını sırayla çalıştırır, önce verinin kopyasını `dil-atlasi-goc-yedegi` anahtarına alır.
 
 Ders günü ayrıca saklanmaz; o dilde bugünden önce çalışılan gün sayısından hesaplanır.
 
