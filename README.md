@@ -30,6 +30,7 @@ app.js                # Uygulama mantığı
 content/{en,fr,it,de}.js  # 30'ar derslik içerik: t başlık, n ipucu, w [kelime, Türkçe, okunuş], p [cümle, Türkçe]
 content/media.js      # Dinle ve İzle sekmelerinin doğrulanmış kaynakları
 sw.js                 # Çevrimdışı uygulama kabuğu ve güncelleme bildirimi
+fonts/                # Inter yazı tipi (SIL OFL 1.1, lisans: fonts/OFL.txt)
 manifest.webmanifest, icons/
 tests/content.test.mjs  # İçerik, kaynak, güvenlik ve anahtar testleri (Node, bağımlılıksız)
 tests/smoke.html      # Tarayıcıda uçtan uca duman testi (verini yedekleyip geri yükler)

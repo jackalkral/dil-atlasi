@@ -89,6 +89,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 - Haricî bağlantılar `noopener noreferrer` ile açılmalı.
 - Kullanıcı girdisi ileride eklenirse HTML'e doğrudan basılmamalı.
 - Bağımlılık eklenirse sürüm sabitlenmeli ve tedarik zinciri riski değerlendirilmelidir.
+- Yazı tipi: Inter değişken (`fonts/inter-latin*.woff2`, @fontsource-variable/inter 5.2.8, SIL OFL 1.1 → `fonts/OFL.txt`), uygulamayla birlikte gelir (dış yazı tipi sunucusu yok, CSP 'self'), `sw.js` önbelleğinde. Tipografi ölçeği: display başlıklar 650 ve sıkı harf aralığı (-.035em), başlık/düğme 600, metin 400; 700 üstü ağırlık kullanma. Ders başlığında ince renk geçişi.
 - Sabit başlıkta (`.top`) `backdrop-filter` kullanma: iPhone'da başlığın kendi düğmelerini soluk/bulanık çiziyor.
 - `index.html` içinde CSP meta etiketi var (`default-src 'self'`). Satır içi betik ve `style=""` özniteliği ekleme; stil `styles.css`'e, betik `app.js`'e gider. `innerHTML` kullanma, `el()` yardımcısı ve `textContent` kullan.
 
