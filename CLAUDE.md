@@ -89,6 +89,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 - Haricî bağlantılar `noopener noreferrer` ile açılmalı.
 - Kullanıcı girdisi ileride eklenirse HTML'e doğrudan basılmamalı.
 - Bağımlılık eklenirse sürüm sabitlenmeli ve tedarik zinciri riski değerlendirilmelidir.
+- Sabit başlıkta (`.top`) `backdrop-filter` kullanma: iPhone'da başlığın kendi düğmelerini soluk/bulanık çiziyor.
 - `index.html` içinde CSP meta etiketi var (`default-src 'self'`). Satır içi betik ve `style=""` özniteliği ekleme; stil `styles.css`'e, betik `app.js`'e gider. `innerHTML` kullanma, `el()` yardımcısı ve `textContent` kullan.
 
 ## Çalışma akışı
