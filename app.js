@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v20';
+const APP_VERSION = 'v21';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
@@ -126,24 +126,48 @@ const emojiFor = (li, wi) => window.EMOJI?.[`${li}:${wi}`] || '';
 const VOICE_KEY = 'dil-atlasi-voices', RATE_KEY = 'dil-atlasi-rate';
 const ROBOTIC = /\b(Albert|Bad News|Bahh|Bells|Boing|Bubbles|Cellos|Good News|Jester|Organ|Superstar|Trinoids|Whisper|Wobble|Zarvox|Fred|Junior|Ralph|Kathy|Deranged|Hysterical|Pipe Organ|Princess|Grandma|Grandpa|Eddy|Flo|Reed|Rocko|Sandy|Shelley)\b/i;
 const voiceList = lang => ('speechSynthesis' in window ? speechSynthesis.getVoices() : []).filter(v => v.lang.replace('_', '-').toLowerCase().startsWith(lang.slice(0, 2).toLowerCase()));
+// Doğal aksan: dilin kendi bölgesindeki ses (fr-FR, it-IT, de-DE, en-US) güçlü biçimde öne alınır; ör. Fransızca için Kanada sesi ancak Fransa sesi yoksa seçilir.
 function voiceScore(v, lang) {
   let s = 0;
   if (/premium|enhanced|geliştirilmiş|natural|neural|wavenet|siri/i.test(v.name)) s += 6;
   if (/google/i.test(v.name)) s += 3;
-  if (v.lang.replace('_', '-').toLowerCase() === lang.toLowerCase()) s += 2;
+  if (v.lang.replace('_', '-').toLowerCase() === lang.toLowerCase()) s += 7;
   if (ROBOTIC.test(v.name)) s -= 10;
   if (v.default) s += 1;
   return s;
 }
 const chosenVoices = () => { try { return JSON.parse(store.get(VOICE_KEY)) || {}; } catch { return {}; } };
-function voiceFor(lang) {
-  const list = voiceList(lang), pick = chosenVoices()[lang.slice(0, 2)];
-  return list.find(v => v.voiceURI === pick) || list.sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang))[0] || null;
+// Kadın/erkek ses tercihi (dil-atlasi-ses-cinsiyet: 'f' | 'm', yoksa otomatik). Tarayıcılar sesin cinsiyetini bildirmez;
+// ad içindeki "Female/Male" ya da bilinen Apple, Google ve Microsoft ses adlarından çıkarılır. Bilinmeyen ses '' döner.
+const GENDER_KEY = 'dil-atlasi-ses-cinsiyet';
+const VOICE_F = /\b(samantha|karen|moira|tessa|victoria|allison|ava|susan|zoe|nicky|martha|catherine|serena|fiona|veena|kate|joelle|jenny|aria|libby|sonia|natasha|michelle|emma|sara|clara|ana|amélie|amelie|audrey|aurélie|aurelie|marie|virginie|julie|céline|celine|denise|eloise|hortense|brigitte|coralie|chantal|sylvie|alice|federica|paola|elsa|isabella|carla|fiamma|giulia|anna|petra|helena|katja|amala|hedda|marlene|vicki|ingrid|seraphina|gisela|elke|leni|tanja)\b/i;
+const VOICE_M = /\b(alex|daniel|aaron|arthur|gordon|rishi|oliver|tom|evan|nathan|guy|davis|ryan|george|james|thomas|jacques|henri|paul|claude|remy|rémy|nicolas|luca|diego|cosimo|giorgio|benigno|markus|yannick|martin|conrad|killian|stefan|hans|florian|christoph|ralf|jonas)\b/i;
+const GOOGLE_F = /^google (us english|français|italiano|deutsch)$/i;
+function voiceGender(v) {
+  const n = v?.name || '';
+  if (/\b(female|woman|kadın|femme|weiblich|donna)\b/i.test(n)) return 'f';
+  if (/\b(male|man|erkek|homme|männlich|uomo)\b/i.test(n)) return 'm';
+  if (GOOGLE_F.test(n.trim())) return 'f';
+  // Microsoft: "Microsoft Denise Online (Natural) - French" → ilk ad
+  const first = n.replace(/^microsoft\s+/i, '').trim();
+  if (VOICE_F.test(first.split(/[\s(,-]/)[0])) return 'f';
+  if (VOICE_M.test(first.split(/[\s(,-]/)[0])) return 'm';
+  return '';
 }
+const genderPref = () => ['f', 'm'].includes(store.get(GENDER_KEY)) ? store.get(GENDER_KEY) : '';
+const byScore = (list, lang) => [...list].sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
+// Seçim sırası: elle seçilen ses (tercih edilen cinsiyete aykırı değilse) → tercih edilen cinsiyetteki en doğal ses → en doğal ses.
+function voiceFor(lang) {
+  const list = voiceList(lang), pick = list.find(v => v.voiceURI === chosenVoices()[lang.slice(0, 2)]), g = genderPref();
+  if (pick && (!g || voiceGender(pick) !== (g === 'f' ? 'm' : 'f'))) return pick;
+  const same = g ? list.filter(v => voiceGender(v) === g) : [];
+  return byScore(same.length ? same : list, lang)[0] || null;
+}
+const genderAvailable = (lang, g) => voiceList(lang).some(v => voiceGender(v) === g);
 const rateFactor = () => [0.8, 1, 1.15].includes(+store.get(RATE_KEY)) ? +store.get(RATE_KEY) : 1;
 function utter(text, lang, rate) {
   const u = new SpeechSynthesisUtterance(text), v = voiceFor(lang);
-  u.lang = v?.lang || lang; if (v) u.voice = v; u.rate = rate * rateFactor();
+  u.lang = v?.lang || lang; if (v) try { u.voice = v; } catch {} u.rate = rate * rateFactor();
   return u;
 }
 // Tek ses kaynağı: yeni bir seslendirme, "Hepsini dinle" zincirini, ses çalışmasını ve çalan kaydı durdurur.
@@ -786,15 +810,33 @@ function renderVoiceSettings() {
   const l = languages[active], sel = $('#voiceSelect');
   if (!sel) return;
   const fill = (select, lang) => {
-    const list = voiceList(lang).sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang)), pick = chosenVoices()[lang.slice(0, 2)];
-    select.replaceChildren(el('option', {value:'', textContent:`Otomatik (en doğal: ${voiceFor(lang)?.name || 'cihaz sesi yok'})`}), ...list.map(v => el('option', {value:v.voiceURI, textContent:`${v.name} · ${v.lang}${voiceScore(v, lang) >= 6 ? ' ★' : ''}`, selected: v.voiceURI === pick})));
+    const list = byScore(voiceList(lang), lang), pick = chosenVoices()[lang.slice(0, 2)], sign = v => ({f:' ♀', m:' ♂'})[voiceGender(v)] || '';
+    select.replaceChildren(el('option', {value:'', textContent:`Otomatik (${voiceFor(lang)?.name || 'cihaz sesi yok'})`}), ...list.map(v => el('option', {value:v.voiceURI, textContent:`${v.name} · ${v.lang}${sign(v)}${/premium|enhanced|geliştirilmiş|natural|neural|wavenet|siri/i.test(v.name) ? ' ★' : ''}`, selected: v.voiceURI === pick})));
   };
   $('#voiceLangLabel').textContent = `${l.name} sesi`; fill(sel, l.voice);
   $('#asrCard').hidden = !canCheck(); $('#asrToggle').checked = store.get(ASR_KEY) === '1';
   document.querySelectorAll('input[name=rate]').forEach(i => { i.checked = +i.value === rateFactor(); });
-  const good = voiceList(l.voice).some(v => voiceScore(v, l.voice) >= 6);
-  $('#voiceHint').textContent = good ? 'Cihazında doğal (★) bir ses var ve otomatik seçildi.' : 'Cihazında bu dil için doğal bir ses bulunamadı. Aşağıdaki adımlarla ücretsiz indirebilirsin.';
+  const good = voiceList(l.voice).some(v => /premium|enhanced|geliştirilmiş|natural|neural|wavenet|siri/i.test(v.name)), g = genderPref();
+  const missing = g && voiceList(l.voice).length && !genderAvailable(l.voice, g) ? ` Bu cihazda ${l.name} ${g === 'f' ? 'kadın' : 'erkek'} ses yok; aşağıdaki adımlarla ücretsiz indirebilirsin.` : '';
+  $('#voiceHint').textContent = (good ? 'Cihazında doğal (★) bir ses var.' : 'Cihazında bu dil için doğal (★) bir ses bulunamadı. Aşağıdaki adımlarla ücretsiz indirebilirsin.') + missing + ' Kadın/erkek sesi sayfanın üstündeki ♀ ♂ düğmeleriyle seçersin.';
+  renderGender();
 }
+// Sayfanın üstündeki ♀ ♂ düğmeleri: dokununca tercih kaydedilir, bugünün ilk kelimesi o sesle okunur ve hangi sesin seçildiği kısa bir bildirimle söylenir.
+function renderGender() {
+  const g = genderPref();
+  document.querySelectorAll('#genderToggle button').forEach(b => b.setAttribute('aria-pressed', b.dataset.g === g));
+}
+let toastT = null;
+function toast(text) { const t = $('#toast'); t.textContent = text; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 4000); }
+document.querySelectorAll('#genderToggle button').forEach(b => { b.onclick = () => {
+  const g = genderPref() === b.dataset.g ? '' : b.dataset.g, l = languages[active];
+  g ? store.set(GENDER_KEY, g) : store.del(GENDER_KEY);
+  renderVoiceSettings();
+  const v = voiceFor(l.voice);
+  if (g && voiceList(l.voice).length && !genderAvailable(l.voice, g)) toast(`Bu cihazda ${l.name} ${g === 'f' ? 'kadın' : 'erkek'} ses yok (${v?.name || '—'} kullanılıyor). İndirmek için: İlerleme → Ses ve telaffuz.`);
+  else toast(`${g === 'f' ? 'Kadın ses' : g === 'm' ? 'Erkek ses' : 'Otomatik ses'}: ${v ? `${v.name} (${v.lang})` : 'cihaz sesi yok'}`);
+  speak(todayLesson().w[0][0]);
+}; });
 const saveVoice = (lang, uri) => { const v = chosenVoices(); if (uri) v[lang] = uri; else delete v[lang]; store.set(VOICE_KEY, JSON.stringify(v)); renderVoiceSettings(); };
 $('#voiceSelect').onchange = e => { saveVoice(active, e.target.value); speak(todayLesson().p[0][0]); };
 $('#asrToggle').onchange = e => { e.target.checked ? store.set(ASR_KEY, '1') : store.del(ASR_KEY); };

@@ -19,7 +19,10 @@
   <header class="top">
     <div class="top-inner">
       <div class="brand"><div class="mark" aria-hidden="true">A</div><span class="name">Dil Atlası</span></div>
-      <nav class="langs" id="langs" aria-label="Dil seçimi"></nav>
+      <div class="top-right">
+        <nav class="langs" id="langs" aria-label="Dil seçimi"></nav>
+        <div class="gender" id="genderToggle" role="group" aria-label="Seslendirme sesi"><button type="button" data-g="f" aria-pressed="false" aria-label="Kadın ses" title="Kadın ses">♀</button><button type="button" data-g="m" aria-pressed="false" aria-label="Erkek ses" title="Erkek ses">♂</button></div>
+      </div>
     </div>
   </header>
 
@@ -173,6 +176,7 @@
     </section>
   </main>
 
+  <div class="toast" id="toast" role="status" hidden></div>
   <div class="update-banner" id="updateBanner" role="status" hidden><span>Yeni sürüm hazır.</span><button class="btn" id="updateReload" type="button">Yenile</button></div>
 
   <script src="./content/en.js"></script>

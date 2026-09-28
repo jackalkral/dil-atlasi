@@ -170,3 +170,11 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .check .diag{margin:4px 0 0;font-size:.74rem;word-break:break-word}
 .asr-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom));width:calc(100vw - 32px);max-width:560px;z-index:15;backdrop-filter:blur(12px);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:10px 12px;border-radius:12px;border:1px solid color-mix(in srgb,var(--danger) 45%,var(--line));background:color-mix(in srgb,var(--danger) 18%,var(--panel2));font-size:.84rem;font-weight:700}.asr-bar .btn{padding:7px 12px;flex:none}
 @media (min-width:760px){.asr-bar{bottom:24px}}
+.top-right{display:flex;align-items:center;gap:8px;min-width:0}
+.gender{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;flex:none}
+.gender button{width:36px;height:34px;border:0;background:transparent;color:var(--muted);font-size:1.05rem;font-weight:800}
+.gender button+button{border-left:1px solid var(--line)}
+.gender button[aria-pressed="true"]{background:color-mix(in srgb,var(--lang) 18%,transparent);color:var(--lang)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top));z-index:30;width:max-content;max-width:calc(100vw - 32px);padding:10px 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);box-shadow:var(--shadow);font-size:.86rem;font-weight:700}
+@media (max-width:420px){.top-inner{gap:6px}.langs{gap:4px}.lang-chip{padding:6px 8px;font-size:.8rem}.gender button{width:32px}}
+@media (max-width:360px){.brand{display:none}}

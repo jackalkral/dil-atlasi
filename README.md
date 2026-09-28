@@ -16,7 +16,7 @@ Canlı adres: https://jackalkral.github.io/dil-atlasi/
 | **İlerleme** | — | Günlük/haftalık özet, dil başına haftalık plan ve hedef, seri, 28 gün, 30 günlük rota, odak sayacı, yöntem, yedekleme |
 
 - Her dilde aynı 30 konu (selamlaşma → kendini anlatma); her derste 8 kelime ve 5 cümle. Kelimelerin Türkçe harflerle okunuşu var (BÜYÜK hece vurgulu; Fransızcada ñ = genizden).
-- Ses: cihazdaki en doğal ses (Premium/Enhanced/Natural/Google) otomatik seçilir; İlerleme → Ses ve telaffuz'dan ses ve hız değiştirilebilir, doğal ses indirme rehberi oradadır.
+- Ses: sayfanın üstündeki ♀ ♂ düğmeleriyle dört dil için kadın ya da erkek ses seçilir; dilin kendi aksanındaki (fr-FR, it-IT, de-DE, en-US) en doğal ses (Premium/Enhanced/Natural/Google) otomatik seçilir; İlerleme → Ses ve telaffuz'dan ses ve hız değiştirilebilir, doğal ses indirme rehberi oradadır.
 - Aralıklı tekrar: önceki derslerin kelime ve cümleleri kart olur; bilinen kart 1 → 3 → 7 → 14 → 30 gün sonra döner.
 - Telaffuz testi (Konuş adımı): her kelime ve cümlede 🎙 **Kaydet** ile kendi sesini doğrusuyla karşılaştırırsın (kayıt cihazda geçici durur, saklanmaz ve gönderilmez); ✓ **Kontrol et** söylediğini tarayıcının konuşma tanıma hizmetiyle yazıya çevirip anlaşılan kelimeleri işaretler (ses Apple/Google'a gider, ilk kullanımda onay ister).
 - Hangi dili ne zaman çalışacağına sen karar verirsin; istersen İlerleme'den dil başına haftalık plan ve günlük hedef kurarsın (yalnızca hatırlatır). Fransızca ile İtalyancayı aynı gün çalışmamak önerilir (benzer diller karışır).
