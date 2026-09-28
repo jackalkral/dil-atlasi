@@ -1,0 +1,16 @@
+{
+  "name": "Dil Atlası — Kişisel Öğrenme Merkezi",
+  "short_name": "Dil Atlası",
+  "description": "İngilizce, Fransızca, İtalyanca ve Almanca için kişisel öğrenme merkezi.",
+  "lang": "tr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07101d",
+  "theme_color": "#08111f",
+  "icons": [
+    {"src":"./icons/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"./icons/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
