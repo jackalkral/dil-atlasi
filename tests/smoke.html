@@ -157,13 +157,22 @@
     w.navigator.mediaDevices.getUserMedia = async () => { if (deny) throw Object.assign(new Error('x'), {name:'NotAllowedError'}); return {getTracks: () => [{stop() { stopped++; }}]}; };
     w.MediaRecorder = class { constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; } start() { this.state = 'recording'; } stop() { this.state = 'inactive'; this.ondataavailable({data:new w.Blob(['x'], {type:'audio/webm'})}); this.onstop(); } };
     let heardText = '';
-    // iPhone Safari gibi: yalnızca ara sonuç gelir (isFinal yok), oturum kendiliğinden kapanmaz, abort() sonrası geç kapanır;
-    // önceki oturum kapanmadan başlatılan yeni oturum hiç sonuç vermez.
-    let micOpen = 0, live = 0;
+    // iPhone Safari modeli (gerçek cihazdaki hatalardan çıkarıldı):
+    // - start() yalnızca dokunma (click) olayının içinde, beklemeden çağrılırsa dinler; aksi hâlde mikrofon açılır ama ses gelmez → 'no-speech'.
+    // - Önceki oturum 'end' göndermeden başlatılan yeni oturum da ses almaz → 'no-speech'.
+    // - Yalnızca ara sonuç gelir (isFinal yok); oturum kendiliğinden kapanmaz.
+    // - stop() oturumu kapatır ve 'end' gönderir; abort() mikrofonu bırakır ama 'end' göndermez, oturum açık sayılır.
+    let micOpen = 0, live = 0, deadStarts = 0;
     w.SpeechRecognition = w.webkitSpeechRecognition = class {
-      start() { const dead = live > 0; live++; micOpen++; this.open = true; if (dead) return; const t = heardText; w.setTimeout(() => this.open && this.onresult({resultIndex:0, results:[Object.assign([{transcript:t}], {isFinal:false})]}), 5); }
-      stop() {}
-      abort() { if (!this.open) return; this.open = false; micOpen--; w.setTimeout(() => { live--; this.onerror?.({error:'aborted'}); this.onend?.(); }, 5); }
+      start() {
+        const inTap = w.event?.type === 'click', dead = !inTap || live > 0;
+        live++; micOpen++; this.open = true; this.live = true;
+        if (dead) { deadStarts++; w.setTimeout(() => { if (!this.open) return; this.onerror?.({error:'no-speech'}); this._close(); }, 5); return; }
+        const t = heardText; w.setTimeout(() => this.open && this.onresult({resultIndex:0, results:[Object.assign([{transcript:t}], {isFinal:false})]}), 5);
+      }
+      _close() { if (this.open) { this.open = false; micOpen--; } if (this.live) { this.live = false; live--; this.onend?.(); } }
+      stop() { w.setTimeout(() => this._close(), 5); }
+      abort() { if (this.open) { this.open = false; micOpen--; } }
     };
     const hk = $$('.step-head'); hk[3].click(); if ($$('.step-head')[3].getAttribute('aria-expanded') !== 'true') $$('.step-head')[3].click();
     const rows = $$('.step.open .pron-item');
@@ -194,6 +203,19 @@
     heardText = 'good'; chk.click(); await wait(2); chk.click(); await wait(60);
     check(!/Dinliyorum/.test(tools.querySelector('.check').textContent) && chk.textContent === '✓ Kontrol et' && micOpen === 0, 'Dinlerken dokununca o ana kadarki sonuç gösterildi ve kapandı', tools.querySelector('.check').textContent);
     check(![...tools.querySelectorAll('.btn')].some(b => b.textContent === '▶ Doğrusu'), '"▶ Doğrusu" düğmesi kaldırıldı');
+    // Kullanıcının senaryosu: yanlış, sonra doğru, art arda 5 kez; her biri sonuç vermeli, hiçbir oturum dokunma dışında başlamamalı
+    const seq = [];
+    for (let k = 0; k < 5; k++) { heardText = k % 2 ? target8 : 'how are you'; chk.click(); await wait(60); seq.push(tools.querySelector('.check .result')?.textContent.match(/%\d+/)?.[0] || tools.querySelector('.check').textContent); }
+    check(seq.join(' ') === '%0 %100 %0 %100 %0' || (seq.every(x => /^%\d+$/.test(x)) && seq[1] === '%100' && seq[3] === '%100'), 'Art arda 5 kontrol: yanlış/doğru her seferinde sonuç verdi', seq.join(' '));
+    const tools0 = rows[0].querySelector('.pron-tools'), chk0 = [...tools0.querySelectorAll('.btn')].find(b => b.textContent.includes('Kontrol'));
+    heardText = w.LESSONS.fr[0].w[0][0]; chk0.click(); await wait(60);
+    check(/%100/.test(tools0.querySelector('.check').textContent), 'Başka satırda hemen ardından kontrol de sonuç verdi', tools0.querySelector('.check').textContent);
+    // Önceki oturum henüz kapanmadan dokunulursa ölü oturum açılmaz, "tekrar dokun" denir; biraz sonra çalışır
+    heardText = w.LESSONS.fr[0].w[0][0]; chk0.click(); await wait(1); chk0.click(); await wait(1); chk0.click();
+    check(/tekrar dokun/.test(tools0.querySelector('.check').textContent), 'Kapanmakta olan oturum varken yeni oturum açılmadı', tools0.querySelector('.check').textContent);
+    await wait(60); chk0.click(); await wait(60);
+    check(/%100/.test(tools0.querySelector('.check').textContent), 'Biraz sonra tekrar dokununca çalıştı', tools0.querySelector('.check').textContent);
+    check(deadStarts === 0 && micOpen === 0 && live === 0, 'Hiçbir tanıma oturumu dokunma dışında ya da üst üste başlamadı; hepsi kapandı', `ölü=${deadStarts} açık=${micOpen} canlı=${live}`);
     check(w.matchWords("J'ai un chat.", 'jai un chat').score < 1 && w.matchWords('Ça va très bien', 'ca va tres bien').score === 1, 'Karşılaştırma aksan ve noktalamayı yok sayıyor');
     check(!Object.keys(localStorage).some(k => /kayit|rec|audio/i.test(k)), 'Ses kaydı saklanmadı');
 

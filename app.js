@@ -525,15 +525,18 @@ function matchWords(target, heard) {
   for (let i = 0, j = 0; i < a.length && j < b.length;) { if (a[i] === b[j]) { ok[i] = true; i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) i++; else j++; }
   return {words: tw.map((w, i) => ({w, ok: ok[i]})), score: a.length ? ok.filter(Boolean).length / a.length : 0};
 }
-// iPhone Safari'de: (1) önceki oturum tamamen kapanmadan açılan yeni oturum hiç sonuç vermez, (2) "son" sonuç çoğu zaman gelmez,
-// (3) sonuçtan sonra oturum kendiliğinden kapanmaz ve mikrofon açık kalır. Bu yüzden: tek canlı oturum (asrLive) tutulur ve yenisi
-// ondan önce kapanmasını bekler; ara sonuçlar toplanır, kısa bir sessizlikten (ASR_QUIET_MS) sonra sonuç gösterilir; sonuçta abort() çağrılır.
-const ASR_QUIET_MS = 1200;
-let asrLive = null; // {r, ended: Promise}
+// iPhone Safari'de gerçek cihazda görülenler:
+// (1) start() yalnızca dokunmanın içinde, hiç beklemeden çağrılırsa dinler; bir await sonrası çağrılırsa mikrofon açılır ama ses almaz ("Ses duyulmadı").
+// (2) önceki oturum 'end' göndermeden başlayan yeni oturum da ses almaz; (3) abort() 'end' göndermez, stop() gönderir;
+// (4) son (isFinal) sonuç çoğu zaman gelmez ve oturum kendiliğinden kapanmaz.
+// Bu yüzden: dokununca start() hemen çağrılır; sonuç ara sonuçlardan ASR_QUIET_MS sessizlikten sonra gösterilir ve oturum stop() ile kapatılır
+// (abort() yalnızca 'end' gelmezse yedek olarak, mikrofonu bırakmak için). Önceki oturum hâlâ kapanıyorsa yeni oturum açılmaz, "tekrar dokun" denir.
+const ASR_QUIET_MS = 1200, ASR_END_WAIT_MS = 1500;
+let asrLive = null; // 'end' göndermemiş son oturum
 const ASR_ERRORS = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. Düğmeye bas ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'};
 function checker(text, voice) {
   const btn = el('button', {type:'button', className:'btn secondary', textContent:'✓ Kontrol et'}), panel = el('div', {className:'check', role:'status'});
-  let cur = null; // bu satırın açık oturumu: {r, finish}
+  let cur = null; // bu satırın dinleyen oturumu: {r, finish}
   const ask = () => panel.replaceChildren(
     el('p', {className:'small', textContent:'Otomatik kontrol, söylediğini yazıya çevirmek için sesini tarayıcının konuşma tanıma hizmetine gönderir (iPhone\'da Apple, Chrome\'da Google). Uygulama sesini saklamaz. Onaylıyor musun?'}),
     el('div', {className:'row'}, el('button', {type:'button', className:'btn', textContent:'Onayla ve dene', onclick: () => { store.set(ASR_KEY, '1'); renderVoiceSettings(); listen(); }}),
@@ -546,19 +549,18 @@ function checker(text, voice) {
     panel.replaceChildren(el('p', {className:`result ${pct >= 80 ? 'ok' : 'no'}`, textContent:`%${pct} · ${pct === 100 ? 'Mükemmel!' : pct >= 80 ? 'Çok iyi.' : pct >= 50 ? 'Fena değil; kırmızı kelimeleri dinleyip tekrar dene.' : 'Anlaşılmadı; ▶ ile dinle, yavaş ve net söyle.'}`}),
       words, el('p', {className:'small muted', textContent:`Anlaşılan: „${best.h}”`}));
   };
-  const listen = async () => {
+  // Dokunmanın içinde eşzamanlı çalışır; burada await olmamalı (bkz. yukarıdaki (1)).
+  const listen = () => {
     releaseMic(); stopAudio();
-    btn.disabled = true; panel.textContent = 'Hazırlanıyor…';
-    if (asrLive) { try { asrLive.r.abort(); } catch {} await Promise.race([asrLive.ended, sleep(1000)]); asrLive = null; }
-    btn.disabled = false;
+    if (asrLive) { try { asrLive.stop(); } catch {} panel.textContent = 'Önceki dinleme kapanıyor; bir saniye sonra tekrar dokun.'; return; }
     let r; try { r = new (SpeechRec())(); } catch { panel.textContent = 'Bu tarayıcı konuşma tanımayı desteklemiyor.'; return; }
-    let endRes; const live = {r, ended: new Promise(res => { endRes = res; })}; asrLive = live;
     r.lang = voice; r.interimResults = true; r.maxAlternatives = 5; r.continuous = false;
-    let alts = [], shown = false, quiet = null, maxT = null;
-    // Sonucu (ya da hata metnini) bir kez gösterir ve oturumu kapatır.
+    let alts = [], shown = false, quiet = null, maxT = null, endT = null;
+    // Sonucu (ya da hata metnini) bir kez gösterir ve oturumu stop() ile kapatır.
     const finish = msg => {
       if (shown) return; shown = true; clearTimeout(quiet); clearTimeout(maxT); micStoppers.delete(stopper);
-      try { r.abort(); } catch {}
+      try { r.stop(); } catch {}
+      endT = setTimeout(() => { try { r.abort(); } catch {} if (asrLive === r) asrLive = null; }, ASR_END_WAIT_MS);
       if (cur?.r === r) { cur = null; btn.textContent = '✓ Kontrol et'; }
       if (msg) panel.textContent = msg; else if (alts.length) showResult(alts); else panel.textContent = ASR_ERRORS['no-speech'];
     };
@@ -571,9 +573,9 @@ function checker(text, voice) {
       clearTimeout(quiet); quiet = setTimeout(() => finish(), ASR_QUIET_MS);
     };
     r.onerror = e => { if (e.error === 'aborted') return; finish(alts.length ? '' : ASR_ERRORS[e.error] || 'Kontrol yapılamadı, tekrar dene.'); };
-    r.onend = () => { endRes(); if (asrLive === live) asrLive = null; finish(); };
-    try { r.start(); } catch { if (asrLive === live) asrLive = null; panel.textContent = 'Kontrol başlatılamadı, birkaç saniye sonra tekrar dene.'; return; }
-    cur = {r, finish}; micStoppers.add(stopper);
+    r.onend = () => { clearTimeout(endT); if (asrLive === r) asrLive = null; finish(); };
+    try { r.start(); } catch { panel.textContent = 'Kontrol başlatılamadı; bir saniye sonra tekrar dokun.'; return; }
+    asrLive = r; cur = {r, finish}; micStoppers.add(stopper);
     maxT = setTimeout(() => finish(alts.length ? '' : 'Süre doldu. Düğmeye bas ve hemen söyle.'), REC_MAX_MS);
     btn.textContent = '■ Dinliyor…'; panel.textContent = 'Dinliyorum… şimdi söyle.';
   };
