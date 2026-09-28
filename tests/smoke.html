@@ -254,7 +254,10 @@
     check(back?.dataset.t === w.LESSONS.fr[0].w[0][0] && /Şimdi ✓ Kontrol et/.test(back.querySelector('.check').textContent), 'Yenileme sonrası aynı kelimeye dönüldü, "şimdi dokun ve söyle" yazıyor', back?.dataset.t);
     // iPhone (v24 tanılaması: yeniden açılan oturum sessiz): mikrofon kendiliğinden kapanmaz; Konuş adımı kapanınca kapanır;
     // yeniden açmak gerekirse sessiz oturum açılmaz, sayfa kendiliğinden yenilenip aynı kelimeye dönülür ve orada çalışır.
-    const iosStub = win => { let n = 0; const st = {open: 0, dead: 0}; win.DA_IOS = true; win.SpeechRecognition = win.webkitSpeechRecognition = class { start() { n++; st.open++; this.alive = n === 1 && win.event?.type === 'click'; if (!this.alive) st.dead++; this.open = true; this.list = []; win.__rec = this; this.onstart?.(); this.onaudiostart?.(); } stop() { win.setTimeout(() => { if (!this.open) return; this.open = false; st.open--; this.onend?.(); }, 5); } abort() { if (this.open) { this.open = false; st.open--; } } }; return st; };
+    // v25 tanılaması ("… → sonuç → tts → tts", sonra ses yok): seslendirme açık oturumu da susturur; sesten sonra açılan oturum da sessizdir.
+    const iosStub = win => { let n = 0; const st = {open: 0, dead: 0, tts: 0}; win.DA_IOS = true;
+      const sp = win.speechSynthesis.speak; win.speechSynthesis.speak = u => { st.tts++; if (win.__rec?.open) win.__rec.alive = false; sp(u); };
+      win.SpeechRecognition = win.webkitSpeechRecognition = class { start() { n++; st.open++; this.alive = n === 1 && win.event?.type === 'click' && st.tts === 0; if (!this.alive) st.dead++; this.open = true; this.list = []; win.__rec = this; this.onstart?.(); this.onaudiostart?.(); } stop() { win.setTimeout(() => { if (!this.open) return; this.open = false; st.open--; this.onend?.(); }, 5); } abort() { if (this.open) { this.open = false; st.open--; } } }; return st; };
     const saysIn = (win, t) => { const r = win.__rec; if (!r?.open || !r.alive) return; r.list = [t]; r.onresult({resultIndex:0, results:[Object.assign([{transcript:t}], {isFinal:false})]}); };
     let ios = iosStub(w);
     const rowK = () => $$('.step.open .pron-item')[2], chkK = () => [...rowK().querySelectorAll('.pron-tools .btn')].find(b => b.textContent.includes('Kontrol'));
@@ -272,6 +275,26 @@
     ios = iosStub(w);
     [...readyK.querySelectorAll('.pron-tools .btn')].find(b => b.textContent.includes('Kontrol')).click(); saysIn(w, wordK); await wait(40);
     check(/%100/.test(readyK.querySelector('.check').textContent) && ios.dead === 0, 'Yenilenen sayfada kontrol çalıştı', readyK.querySelector('.check').textContent);
+    // Asıl akış: ▶ ile dinle → ✓ ile söyle. iPhone'da ▶ bitince sayfa kendiliğinden yenilenir; önceki sonuçlar kalır, ✓ çalışır.
+    const row0 = () => $$('.step.open .pron-item')[0], chkOf = r => [...r.querySelectorAll('.pron-tools .btn')].find(b => b.textContent.includes('Kontrol'));
+    const word0 = w.LESSONS.fr[0].w[0][0];
+    chkOf(row0()).click(); saysIn(w, word0); await wait(40);
+    check(/%100/.test(row0().querySelector('.check').textContent), 'Aynı oturumda başka satır da çalıştı');
+    w.__eskiSayfa = true; let rl = new Promise(r => frame.onload = r); readyK.querySelector('.speak').click(); await rl; await wait(150);
+    w = stub(frame.contentWindow); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)]; ios = iosStub(w);
+    const afterPlay = $('.pron-item.ready');
+    check(!w.__eskiSayfa && afterPlay?.dataset.t === wordK && /Dinledin\. Şimdi ✓ Kontrol et/.test(afterPlay.querySelector('.check').textContent), 'iPhone: ▶ bitince sayfa yenilendi, aynı satırda "Dinledin. Şimdi ✓"', afterPlay?.querySelector('.check').textContent);
+    check(/%100/.test(row0().querySelector('.check').textContent), 'Yenilemeden sonra önceki sonuçlar duruyor');
+    chkOf(afterPlay).click(); saysIn(w, wordK); await wait(40);
+    check(/%100/.test(afterPlay.querySelector('.check').textContent) && ios.dead === 0, '▶ → ✓ akışı: kontrol çalıştı, sessiz oturum açılmadı', afterPlay.querySelector('.check').textContent);
+    // Başka yerden ses (♀ örneği) çalınınca açık oturum susar; sonraki ✓ sessiz oturumda kalmaz, sayfayı yenileyip hazırlar
+    $('#genderToggle button[data-g="f"]').click(); await wait(20);
+    rl = new Promise(r => frame.onload = r); chkOf(row0()).click(); await rl; await wait(150);
+    w = stub(frame.contentWindow); $ = s => w.document.querySelector(s); $$ = s => [...w.document.querySelectorAll(s)]; ios = iosStub(w);
+    check($('.pron-item.ready')?.dataset.t === word0 && /Mikrofon hazır/.test($('.pron-item.ready .check').textContent), 'Sesten sonra ✓: sayfa yenilendi, aynı satırda "Mikrofon hazır"');
+    chkOf(row0()).click(); saysIn(w, word0); await wait(40);
+    check(/%100/.test(row0().querySelector('.check').textContent) && ios.dead === 0, 'Yenilemeden sonra kontrol çalıştı', row0().querySelector('.check').textContent);
+    $('#genderToggle button[data-g="f"]').click(); localStorage.removeItem('dil-atlasi-ses-cinsiyet');
     w.DA_IOS = false; $('#asrBar .btn')?.click(); await wait(20);
     // Kullanıcının v22 durumu: sayfanın İLK oturumu da sessiz (ör. önce seslendirme çalındı) → yine Yenile önerilir, tanılamada tts sayısı görünür
     let micOpen2 = 0;
