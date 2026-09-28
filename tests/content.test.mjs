@@ -79,6 +79,12 @@ check(/FrequencyWords/.test(read('index.html')) && /by-sa\/4\.0/.test(read('inde
 // 2e) app.js ve sw.js sözdizimi geçerli olmalı (tek bir kaçırılmış tırnak bütün uygulamayı durdurur).
 for (const f of ['app.js', 'sw.js']) { let ok = true, msg = ''; try { new Function(read(f)); } catch (e) { ok = false; msg = e.message; } check(ok, `${f} sözdizimi hatalı: ${msg}`); }
 
+// 2f) Yazı tipi: styles.css'teki her yerel yazı tipi dosyası var, sw.js önbelleğinde ve OFL lisansı depoda.
+{ const css = read('styles.css'), fonts = [...new Set((css.match(/url\("(fonts\/[^"]+)"\)/g) || []).map(u => u.slice(5, -2)))];
+  check(fonts.length >= 2, 'styles.css yerel yazı tipi dosyalarını içermeli');
+  fonts.forEach(f => { check(existsSync(root + f), `${f} bulunamadı`); check(read('sw.js').includes('./' + f), `sw.js APP_SHELL ${f} içermeli (çevrimdışı)`); });
+  check(existsSync(root + 'fonts/OFL.txt') && /Open Font License/.test(read('fonts/OFL.txt')), 'fonts/OFL.txt lisansı olmalı'); }
+
 // 3) Uygulama kabuğu: Service Worker'daki her dosya var olmalı.
 const shell = read('sw.js').match(/APP_SHELL = \[(.*?)\]/s)[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));
 shell.filter(p => p !== './').forEach(p => check(existsSync(root + p.slice(2)), `sw.js: ${p} bulunamadı`));
