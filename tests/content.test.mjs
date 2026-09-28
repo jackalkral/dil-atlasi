@@ -76,6 +76,9 @@ check(/FrequencyWords/.test(read('index.html')) && /by-sa\/4\.0/.test(read('inde
 { const av = read('app.js').match(/const APP_VERSION = '(v\d+)'/)?.[1], cn = read('sw.js').match(/CACHE_NAME = 'dil-atlasi-(v\d+)'/)?.[1];
   check(av && av === cn, `APP_VERSION (${av}) ile sw.js CACHE_NAME (${cn}) aynı olmalı`); }
 
+// 2e) app.js ve sw.js sözdizimi geçerli olmalı (tek bir kaçırılmış tırnak bütün uygulamayı durdurur).
+for (const f of ['app.js', 'sw.js']) { let ok = true, msg = ''; try { new Function(read(f)); } catch (e) { ok = false; msg = e.message; } check(ok, `${f} sözdizimi hatalı: ${msg}`); }
+
 // 3) Uygulama kabuğu: Service Worker'daki her dosya var olmalı.
 const shell = read('sw.js').match(/APP_SHELL = \[(.*?)\]/s)[1].match(/'([^']+)'/g).map(s => s.slice(1, -1));
 shell.filter(p => p !== './').forEach(p => check(existsSync(root + p.slice(2)), `sw.js: ${p} bulunamadı`));

@@ -11,7 +11,7 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v24';
+const APP_VERSION = 'v25';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
 const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
 
@@ -168,6 +168,13 @@ const rateFactor = () => [0.8, 1, 1.15].includes(+store.get(RATE_KEY)) ? +store.
 function utter(text, lang, rate) {
   AUDIO_USE.tts++;
   const u = new SpeechSynthesisUtterance(text), v = voiceFor(lang);
+  // Mikrofon açıkken çalan ses: bitene kadar ve bittikten sonra ASR_ECHO_MS boyunca tanıyıcıdan gelenler yok sayılır ('end' gelmezse süre tahmini).
+  if (ASR.state === 'listening') {
+    if (ASR.log.length < 40) ASR.log.push('tts');
+    ASR.echoUntil = Infinity;
+    const ended = () => { if (ASR.echoUntil === Infinity) ASR.echoUntil = Date.now() + ASR_ECHO_MS; };
+    u.addEventListener('end', ended); u.addEventListener('error', ended); setTimeout(ended, 1500 + text.length * 120);
+  }
   u.lang = v?.lang || lang; if (v) try { u.voice = v; } catch {} u.rate = rate * rateFactor();
   return u;
 }
@@ -184,6 +191,11 @@ function stopAudio() {
 // Sayfa yüklendiğinden beri seslendirme (tts) ve kayıt (rec) sayısı: telaffuz kontrolü başarısız olursa tanılama satırında gösterilir
 // (iPhone'da seslendirme ya da kayıttan sonra mikrofonun sessiz açıldığından şüpheleniliyor; bu sayılar bunu doğrulamak için).
 const AUDIO_USE = {tts: 0, rec: 0};
+// Mikrofon açıkken çalan seslendirme ve hemen sonrası: tanıyıcı telefonun kendi sesini "söylenen" sanmasın.
+const ASR_ECHO_MS = 600;
+const ttsEcho = () => Date.now() < ASR.echoUntil;
+// iPhone/iPad (iPadOS masaüstü Safari gibi görünür). Testler window.DA_IOS ile zorlayabilir.
+const isIOS = () => window.DA_IOS ?? (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 function speak(text, lang = languages[active].voice, rate = .85) {
   if (!('speechSynthesis' in window)) return;
   stopAudio(); speechSynthesis.speak(utter(text, lang, rate));
@@ -322,6 +334,8 @@ function renderToday() {
     if (open) wrap.append(el('div', {className:'step-body'}, ...stepBody(s, lesson, due, i)));
     box.append(wrap);
   });
+  // Mikrofon yalnızca Konuş adımı açıkken açık kalır.
+  if (STEPS[openStep]?.task !== 'speak' && ASR.state === 'listening') asrStop();
   asrBar();
 }
 function planHint() {
@@ -566,10 +580,13 @@ function matchWords(target, heard) {
 // Her kontrol, dokunduğu andaki sonuç listesinin kopyasını (snap) alır; sonra gelen yeni sonuçlar ve değişen sonuçların yeni kısmı
 // (asrDelta) ASR_QUIET_MS sessizlikten sonra değerlendirilir. iPhone duraklamadan sonra metne eklemek yerine yeni bir metin başlatabildiği için
 // kelime sayısına göre kesmek yanlıştı ("how are you" sonrası "hello" hiç görülmüyordu).
-// Oturum açıkken "Mikrofon açık · Kapat" çubuğu görünür; ASR_IDLE_MS kullanılmazsa, sekme değişince ya da uygulama arka plana geçince kapanır.
-// Kapandıktan sonra yeniden açılan oturum sessiz kalırsa sayfayı yenileme önerilir (yenileme iPhone'da mikrofonu sıfırlar; Konuş adımı yeniden açılır).
-const ASR_QUIET_MS = 1200, ASR_IDLE_MS = 30000, ASR_END_WAIT_MS = 1500, ASR_STUCK_MS = 3000, ASR_REOPEN_KEY = 'dil-atlasi-konus-ac';
-const ASR = {r: null, state: 'idle', owner: null, log: [], starts: 0, heard: 0, results: [], snap: [], lang: '', stopAt: 0, lastUse: 0, idleI: null, endT: null};
+// Gerçek cihaz tanılaması (v24: "oturum 2 · tts 2 · kayıt 0", sessiz): iPhone'da mikrofon sayfada bir kez kullanıldıktan sonra (tanıma ya da kayıt)
+// yeniden açılan tanıma oturumu ses almıyor. Bu yüzden: (1) oturum kendiliğinden kapatılmaz; Konuş adımı açık olduğu sürece açık kalır, adımdan/sekmeden/
+// dilden çıkınca, arka planda ya da "Kapat" ile kapanır; (2) iPhone'da yeniden açmak gerekirse sessiz oturum açılmaz, sayfa hemen yenilenir ve aynı
+// satıra dönülür ("Mikrofon hazır, dokun ve söyle"); yenilenen sayfada ilk oturum temiz açılır. (3) Seslendirme sırasında ve hemen sonrasında gelen
+// sonuçlar yok sayılır (ttsEcho), yalnızca başlangıç kopyası (snap) yenilenir.
+const ASR_QUIET_MS = 1200, ASR_END_WAIT_MS = 1500, ASR_STUCK_MS = 3000, ASR_REOPEN_KEY = 'dil-atlasi-konus-ac';
+const ASR = {r: null, state: 'idle', owner: null, log: [], starts: 0, heard: 0, results: [], snap: [], lang: '', stopAt: 0, endT: null, echoUntil: 0};
 const ASR_EVENTS = {start:'başladı', audiostart:'mikrofon', soundstart:'ses', speechstart:'konuşma', speechend:'konuşma bitti', audioend:'mikrofon kapandı', nomatch:'eşleşme yok'};
 const ASR_ERRORS = {'not-allowed':'Mikrofon ya da konuşma tanıma izni verilmedi. Tarayıcı ayarlarından izin verebilirsin.', 'service-not-allowed':'Konuşma tanıma bu cihazda kapalı (iPhone: Ayarlar → Genel → Klavye → Dikte açık olmalı).', 'no-speech':'Ses duyulmadı. ✓ Kontrol et\'e dokun ve hemen söyle.', 'network':'Konuşma tanıma için internet bağlantısı gerekiyor.', 'audio-capture':'Mikrofon bulunamadı.'};
 const ASR_FATAL = ['not-allowed', 'service-not-allowed', 'network', 'audio-capture'];
@@ -577,10 +594,10 @@ function asrBar() {
   const bar = document.getElementById('asrBar'); if (!bar) return;
   const on = ASR.state === 'listening';
   bar.hidden = !on;
-  if (on) bar.replaceChildren(el('span', {textContent:`🎙 Mikrofon açık · ${ASR_IDLE_MS / 1000} sn kullanılmazsa kapanır`}), el('button', {type:'button', className:'btn secondary', textContent:'Kapat', onclick: asrStop}));
+  if (on) bar.replaceChildren(el('span', {textContent:'🎙 Mikrofon açık · Konuş adımından çıkınca kapanır'}), el('button', {type:'button', className:'btn secondary', textContent:'Kapat', onclick: asrStop}));
 }
 function asrEnded() {
-  clearTimeout(ASR.endT); clearInterval(ASR.idleI); micStoppers.delete(asrStop);
+  clearTimeout(ASR.endT); micStoppers.delete(asrStop);
   ASR.state = 'idle'; const o = ASR.owner; ASR.owner = null; o?.ended(); asrBar();
 }
 // Dokunma anındaki sonuçlarla (snap) şimdikiler arasındaki yeni konuşma: yeni sonuç sıraları tamamen, değişen bir sonuç eskisinin
@@ -601,8 +618,9 @@ function asrInstance() {
   r.onresult = e => {
     if (ASR.r !== r) return;
     if (ASR.log.at(-1) !== 'sonuç') ASR.log.push('sonuç');
-    ASR.heard++; ASR.lastUse = Date.now();
+    ASR.heard++;
     ASR.results = [...e.results].map(x => x[0]?.transcript || '');
+    if (ttsEcho()) { ASR.snap = [...ASR.results]; return; }
     // Metin değişmediyse (ör. aynı kelime yeniden söylendi ve iPhone metni aynısıyla baştan yazdı) dokunmadan sonra gelen sonuç yine yeni konuşmadır.
     ASR.owner?.update(asrDelta(ASR.snap, ASR.results) || ASR.results.filter(t => t.trim()).at(-1)?.trim() || '');
   };
@@ -610,9 +628,8 @@ function asrInstance() {
   r.onend = () => { if (ASR.r !== r) return; ASR.log.push('bitti'); asrEnded(); };
   return r;
 }
-// Bir kontrolü başlatır. Dokunmanın içinde eşzamanlı çağrılmalı. 'ok' | 'busy' | 'fail' döner.
+// Bir kontrolü başlatır. Dokunmanın içinde eşzamanlı çağrılmalı. 'ok' | 'busy' | 'fail' | 'reload' döner.
 function asrCheck(owner, lang) {
-  ASR.lastUse = Date.now();
   if (ASR.state === 'listening' && ASR.lang === lang) {
     const prev = ASR.owner; ASR.owner = null; prev?.cancel();
     ASR.snap = [...ASR.results]; ASR.owner = owner; return 'ok';
@@ -622,6 +639,8 @@ function asrCheck(owner, lang) {
     if (Date.now() - ASR.stopAt < ASR_STUCK_MS) return 'busy';
     try { ASR.r.abort(); } catch {} ASR.r = null; asrEnded();
   }
+  // iPhone: mikrofon bu sayfada daha önce kullanıldıysa yeni oturum sessiz açılır; önce sayfa yenilenmeli.
+  if (isIOS() && (ASR.starts > 0 || AUDIO_USE.rec > 0)) return 'reload';
   ASR.log = []; ASR.heard = 0; ASR.results = []; ASR.snap = []; ASR.lang = lang;
   const go = () => { const r = asrInstance(); r.lang = lang; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1; r.start(); };
   try { go(); }
@@ -631,21 +650,18 @@ function asrCheck(owner, lang) {
     try { go(); } catch (e2) { ASR.log.push(`start:${e2?.name || 'hata'}`); return 'fail'; }
   }
   ASR.starts++; ASR.state = 'listening'; ASR.owner = owner; micStoppers.add(asrStop);
-  clearInterval(ASR.idleI);
-  ASR.idleI = setInterval(() => { if (!ASR.owner && Date.now() - ASR.lastUse > ASR_IDLE_MS) asrStop(); }, 1000);
   asrBar();
   return 'ok';
 }
 // Oturumu stop() ile kapatır; 'end' gelmezse mikrofonu bırakmak için abort() yedek.
 function asrStop() {
   if (ASR.state !== 'listening') return;
-  ASR.state = 'closing'; ASR.stopAt = Date.now(); clearInterval(ASR.idleI); micStoppers.delete(asrStop);
+  ASR.state = 'closing'; ASR.stopAt = Date.now(); micStoppers.delete(asrStop);
   try { ASR.r.stop(); } catch {}
   clearTimeout(ASR.endT);
   ASR.endT = setTimeout(() => { if (ASR.state !== 'closing') return; ASR.log.push('bitti (zorla)'); try { ASR.r.abort(); } catch {} asrEnded(); }, ASR_END_WAIT_MS);
   asrBar();
 }
-// Yenile ve devam et: yenilemeden sonra Konuş adımı açılır ve telaffuz testine kaydırılır.
 // Yenile ve devam et: yenilemeden sonra Konuş adımı açılır, aynı satıra kaydırılır ve "şimdi dokun ve söyle" denir.
 function reloadToSpeak(row) { try { sessionStorage.setItem(ASR_REOPEN_KEY, row || '1'); } catch {} location.reload(); }
 const reloadBtn = row => el('button', {type:'button', className:'btn', textContent:'↻ Yenile ve devam et', onclick: () => reloadToSpeak(row)});
@@ -653,7 +669,7 @@ function checker(text, voice) {
   const btn = el('button', {type:'button', className:'btn secondary', textContent:'✓ Kontrol et'}), panel = el('div', {className:'check', role:'status'});
   let cur = null; // bu satırın bekleyen kontrolü
   const ask = () => panel.replaceChildren(
-    el('p', {className:'small', textContent:'Otomatik kontrol, söylediğini yazıya çevirmek için sesini tarayıcının konuşma tanıma hizmetine gönderir (iPhone\'da Apple, Chrome\'da Google). Mikrofon, sen kapatana ya da 30 sn kullanılmayana kadar açık kalır. Uygulama sesini saklamaz. Onaylıyor musun?'}),
+    el('p', {className:'small', textContent:'Otomatik kontrol, söylediğini yazıya çevirmek için sesini tarayıcının konuşma tanıma hizmetine gönderir (iPhone\'da Apple, Chrome\'da Google). Mikrofon, Konuş adımından çıkana ya da Kapat\'a basana kadar açık kalır. Uygulama sesini saklamaz. Onaylıyor musun?'}),
     el('div', {className:'row'}, el('button', {type:'button', className:'btn', textContent:'Onayla ve dene', onclick: () => { store.set(ASR_KEY, '1'); renderVoiceSettings(); listen(); }}),
       el('button', {type:'button', className:'btn secondary', textContent:'Vazgeç', onclick: () => panel.replaceChildren()})));
   const showResult = heard => {
@@ -687,6 +703,7 @@ function checker(text, voice) {
       error: code => finish(code), ended: () => finish(), cancel: () => finish('cancel')
     };
     let st; try { st = asrCheck(owner, voice); } catch { panel.textContent = 'Bu tarayıcı konuşma tanımayı desteklemiyor.'; return; }
+    if (st === 'reload') { panel.textContent = 'Mikrofon hazırlanıyor…'; reloadToSpeak(text); return; }
     if (st === 'busy') { panel.textContent = 'Mikrofon kapanıyor; bir saniye sonra tekrar dokun.'; return; }
     if (st === 'fail') { fail('Kontrol başlatılamadı; bir saniye sonra tekrar dokun. Olmazsa yenile.', true); return; }
     cur = owner;
@@ -976,7 +993,7 @@ if (reopenSpeak) {
   const row = [...document.querySelectorAll('#pronTest .pron-item')].find(r => r.dataset.t === reopenSpeak);
   (row || $('#pronTest'))?.scrollIntoView({block:'center'});
   const panel = row?.querySelector('.check');
-  if (panel) { row.classList.add('ready'); panel.textContent = 'Sayfa yenilendi, mikrofon hazır. Şimdi ✓ Kontrol et\'e dokun ve söyle.'; }
+  if (panel) { row.classList.add('ready'); panel.textContent = 'Mikrofon hazır. Şimdi ✓ Kontrol et\'e dokun ve söyle.'; }
 }
 
 if ('serviceWorker' in navigator) {
