@@ -167,3 +167,4 @@ main{max-width:880px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-i
 .word-ok{color:var(--accent)!important;background:color-mix(in srgb,var(--accent) 14%,transparent)}
 .word-miss{color:var(--danger)!important;background:color-mix(in srgb,var(--danger) 14%,transparent);text-decoration:underline wavy}
 .pron-tools .rec{margin-top:0}.rec [role=status]:empty{display:none}.pron-tools .rec:not(:has(audio)):has([role=status]:empty){display:none}
+.check .diag{margin:4px 0 0;font-size:.74rem;word-break:break-word}
