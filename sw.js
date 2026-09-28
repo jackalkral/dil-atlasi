@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dil-atlasi-v28';
+const CACHE_NAME = 'dil-atlasi-v29';
 const APP_SHELL = ['./', './index.html', './styles.css', './app.js', './content/en.js', './content/fr.js', './content/it.js', './content/de.js', './content/media.js', './content/emoji.js', './content/freq-en.js', './content/freq-fr.js', './content/freq-it.js', './content/freq-de.js', './fonts/inter-latin.woff2', './fonts/inter-latin-ext.woff2', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
 
 // Yeni sürüm kendiliğinden devreye girmez; sayfa "Yenile" onayıyla SKIP_WAITING gönderir.
