@@ -38,7 +38,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - Tek ses kaynağı: `speak()` ve `playAll()` önce `stopAudio()` çağırır; bu, `audioRun` belirtecini artırıp "Hepsini dinle" zincirini, ses çalışmasını ve çalan kaydı durdurur. Safari `cancel()` sonrasında da `onend` gönderdiği için sıralı çalan her zincir belirteci denetlemeli. Sekme değişince ses durur.
 - Telaffuz testi (Konuş adımının 1. bölümü): bugünün 8 kelimesi + 5 cümlesi; her satırda ▶ dinle, 🎙 Kaydet, ✓ Kontrol et.
   - 🎙 Kaydet: mikrofon yalnızca dokununca açılır, kayıt bellekte blob olarak kalır, saklanmaz/gönderilmez, bitince mikrofon kapatılır, en fazla 10 sn. CSP'de `media-src 'self' blob:` bunun için var.
-  - ✓ Kontrol et: tarayıcının `SpeechRecognition` hizmeti (iPhone'da Apple, Chrome'da Google) sesi yazıya çevirir; bu ses cihaz dışına çıktığı için ilk kullanımda açık onay istenir (`dil-atlasi-tanima` = '1', İlerleme → Ses ve telaffuz'dan kapatılır). `matchWords()` hedef kelimeleri sırayı koruyarak eşleştirir (aksan/noktalama yok sayılır), yüzde ve eksik kelimeleri gösterir.
+  - ✓ Kontrol et: tarayıcının `SpeechRecognition` hizmeti (iPhone'da Apple, Chrome'da Google) sesi yazıya çevirir; bu ses cihaz dışına çıktığı için ilk kullanımda açık onay istenir (`dil-atlasi-tanima` = '1', İlerleme → Ses ve telaffuz'dan kapatılır). `matchWords()` hedef kelimeleri sırayı koruyarak eşleştirir (aksan/noktalama yok sayılır), yüzde ve eksik kelimeleri gösterir. iPhone'da sonuçtan sonra oturum kendiliğinden kapanmaz: sonuç/hata/süre sınırında `abort()` çağrılır. Açık mikrofon oturumları `micStoppers` içinde; yeni kayıt/kontrol başlarken ve sayfa arka plana geçince `releaseMic()` hepsini kapatır.
 - Yedek biçimi `schemaVersion: 2` (hatırlama ölçüsü, plan, günlük istatistik, hız eklendi); geri yükleme 1 ve 2'yi kabul eder.
 - Odak sayacı bitiş anından hesaplanır (arka planda kaymaz); tamamlanan süre günlük istatistiğe yazılır.
 - `content/*.js`, `app.js` veya `styles.css` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı (Service Worker bu dosyaları önbellekten verir).
@@ -97,7 +97,7 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 
 ## Kabul testi
 
-Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (99 kontrol). Her değişiklikten sonra ikisi de geçmeli.
+Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (101 kontrol). Her değişiklikten sonra ikisi de geçmeli.
 
 
 - Dört dil arasında geçiş yapılabiliyor.
