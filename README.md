@@ -6,8 +6,11 @@
 
 - Dört dil için ayrı 12 haftalık yol haritası
 - İngilizce (A2 → B1, iş ve siber güvenlik) ve Fransızca (A0 → A1) için 30 günlük ders içeriği
-- Önceki derslerden aralıklı tekrar kartları (1, 3, 7 ve 14 ders önce)
-- Günlük 25 dakikalık dört çalışma bloğu ve ilerleme yüzdesi
+- Gerçek aralıklı tekrar: önceki derslerin cümleleri kart olur; bilinen kart 1 → 3 → 7 → 14 → 30 gün sonra tekrar gelir
+- Günlük dört blok (tekrar, dinleme, shadowing, konuşma); ana dilde 25, yan dilde 14 dakika
+- Seyahat, toplantı, iş görüşmesi ve günlük hayat konuşma görevleri + 4/3/2 akıcılık sayacı
+- Doğrulanmış ücretsiz podcast, video, haber ve iş İngilizcesi kaynakları (Dinle ve izle)
+- Yöntemlerin bilimsel dayanakları (bkz. KAYNAKLAR.md)
 - Çalışma serisi ve 28 günlük geçmiş
 - 25/45/60 dakika seçilebilen odak sayacı
 - İlerlemeyi JSON dosyası olarak yedekleme ve geri yükleme
@@ -24,7 +27,7 @@
 ```text
 dil-atlasi-source/
 ├── index.html              # Arayüz ve uygulama mantığı
-├── lessons.js              # 30 günlük ders içeriği (en, fr)
+├── lessons.js              # Ders içeriği, konuşma görevleri ve medya kaynakları (en, fr)
 ├── manifest.webmanifest    # PWA tanımı
 ├── sw.js                   # Çevrimdışı uygulama kabuğu
 ├── icons/                  # Uygulama simgeleri
@@ -67,6 +70,7 @@ Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 
 - Aktif dil: `dil-atlasi-active`
 - Sayaç süresi (dakika): `dil-atlasi-timer` — `25`, `45` veya `60`
+- Aralıklı tekrar kartları: `dil-atlasi-srs` — `{ v: 1, cards: { "en:0:1": { b: kutu, d: "YYYY-MM-DD" } } }`
 - Görevler: `da:{görev}:{dil}:{YYYY-MM-DD}`
 - Dil kodları: `en`, `fr`, `it`, `de`
 - Görev kodları: `review`, `lesson`, `shadow`, `speak`
@@ -75,7 +79,7 @@ Ders günü ayrıca saklanmaz; o dilde bugünden önce en az bir görevin işare
 
 Sunucuya kişisel veri gönderilmez. Bunun karşılığı olarak veriler cihazlar arasında eşitlenmez ve tarayıcı verileri silinirse ilerleme kaybolur; bu yüzden düzenli yedek almak önerilir.
 
-**Yedeği indir** düğmesi `{ app, schemaVersion: 1, exportedAt, settings, tasks }` biçiminde bir JSON dosyası üretir. **Yedekten yükle** dosyayı doğrular, yalnızca geçerli `da:` anahtarlarını kabul eder ve mevcut kayıtları silmeden birleştirir.
+**Yedeği indir** düğmesi `{ app, schemaVersion: 1, exportedAt, settings, tasks, srs }` biçiminde bir JSON dosyası üretir. **Yedekten yükle** dosyayı doğrular, yalnızca geçerli `da:` anahtarlarını kabul eder ve mevcut kayıtları silmeden birleştirir.
 
 ## Yayına alma
 

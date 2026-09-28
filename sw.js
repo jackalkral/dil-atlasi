@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dil-atlasi-v4';
+const CACHE_NAME = 'dil-atlasi-v5';
 const APP_SHELL = ['./', './index.html', './lessons.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 // Yeni sürüm kendiliğinden devreye girmez; sayfa "Yenile" onayıyla SKIP_WAITING gönderir.

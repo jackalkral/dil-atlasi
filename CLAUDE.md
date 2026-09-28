@@ -19,13 +19,16 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - Ana dil: İngilizce (A2 → B1, iş ve siber güvenlik odaklı). Yan dil: Fransızca (A0 → A1). İtalyanca ve Almanca sonra.
 - Günlük hedef 25–30 dakika; yan dilde 10–15 dakika.
 - Ders günü = o dilde bugünden önce çalışılan gün sayısı + 1 (`getLessonDay`); ayrı anahtar yoktur.
-- `lessons.js` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı.
+- `lessons.js` değişince `sw.js` içindeki `CACHE_NAME` artırılmalı (Service Worker bu dosyayı önbellekten verir).
+- Günlük bloklar Nation'ın dört koluna göre: `review` = aralıklı tekrar, `lesson` = dinleme/girdi, `shadow` = telaffuz, `speak` = konuşma + 4/3/2. Süreler ana dil 6/8/4/7, yan dil 4/5/3/2 dk.
+- Aralıklı tekrar `dil-atlasi-srs` anahtarında; kart kimliği `dil:dersSırası:cümleSırası`. Mevcut derslerin cümle sırasını değiştirme, yeni cümleyi sona ekle; yoksa kart geçmişi kayar.
+- `review` görevi, günün kartları bitince kendiliğinden işaretlenir.
 
 ## Korunması gereken davranışlar
 
 1. `dil-atlasi-active` aktif dil anahtarını koru.
 2. `da:{task}:{lang}:{date}` görev anahtarlarını taşımadan veya geriye uyumluluk sağlamadan değiştirme.
-3. Dil kodları `en`, `fr`, `it`, `de`; görev kodları `review`, `lesson`, `shadow`, `speak` olarak kalmalı.
+3. Dil kodları `en`, `fr`, `it`, `de`; görev kodları `review`, `lesson`, `shadow`, `speak` olarak kalmalı. `dil-atlasi-timer` ve `dil-atlasi-srs` anahtarları da korunmalı.
 4. Kullanıcı verisini açık onay olmadan haricî bir servise gönderme.
 5. Ücretsiz kaynak bağlantılarını koru ve ücretli hizmeti ana akışa yerleştirme.
 6. Mobil erişilebilirliği, klavye kullanımını ve düşük hareket tercihini koru.
@@ -44,7 +47,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 ### Sürüm 1.2
 
 - Dil başına hedef ve haftalık program ayarı
-- Kelime/cümle kartları için aralıklı tekrar sistemi
+- ~~Kelime/cümle kartları için aralıklı tekrar sistemi~~ (yapıldı: Leitner kutuları)
 - Günlük ve haftalık istatistikler
 - Veri şemasına sürüm numarası ve kontrollü migration
 

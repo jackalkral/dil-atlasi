@@ -367,3 +367,64 @@ window.LESSONS = {
       ['Je voudrais parler couramment un jour.', 'Bir gün akıcı konuşmak istiyorum.']]}
   ]
 };
+
+// Konuşma görevleri (görev temelli öğrenme + 4/3/2 akıcılık). c = kategori, t = başlık, p = Türkçe yönerge, s = başlangıç cümlesi.
+// Ders gününe göre sırayla döner.
+window.SPEAKING = {
+  en: [
+    {c:'Günlük', t:'Tipik bir iş günün', p:'Sabahtan akşama bir iş gününü anlat: ne zaman başlarsın, neler yaparsın, en sevdiğin kısım ne?', s:'On a typical day, I usually…'},
+    {c:'Seyahat', t:'Otelde giriş', p:'Resepsiyonda giriş yap: rezervasyonunu söyle, kahvaltı saatini ve Wi-Fi şifresini sor, geç çıkış iste.', s:'Hi, I have a reservation under the name…'},
+    {c:'Toplantı', t:'Haftalık durum güncellemesi', p:'Bir projede ne bitti, ne sürüyor, neyi bekliyorsun? Bir riski ve çözümünü ekle.', s:"Here's a quick update on…"},
+    {c:'Mülakat', t:'Tell me about yourself', p:'Kendini anlat: şu anki rolün, önemli bir başarın ve bir sonraki hedefin.', s:"I'm currently working as…"},
+    {c:'Günlük', t:'Geçen hafta sonu', p:'Geçen hafta sonu ne yaptığını anlat; en az üç past simple fiil kullan.', s:'Last weekend, I…'},
+    {c:'Seyahat', t:'Uçuş rötar yaptı', p:'Havayolu görevlisine uçuşunun rötar yaptığını söyle, seçenekleri sor ve aktarmayı kaçırabileceğini açıkla.', s:'Excuse me, my flight has been delayed and…'},
+    {c:'Toplantı', t:'Oltalama olayını anlat', p:'Yöneticine bir oltalama e-postasını anlat: ne oldu, nasıl fark ettin, ne yaptın, şimdi ne önerirsin?', s:'This morning, one of our colleagues received…'},
+    {c:'Mülakat', t:'Zor bir problem', p:'Çözdüğün zor bir problemi STAR sırasıyla anlat: durum, görev, yaptığın şey, sonuç.', s:'A few months ago, we had a problem with…'},
+    {c:'Günlük', t:'Şehrini tanıt', p:'Şehrine gelen bir yabancıya şehrini tanıt: nereleri gezsin, ne yesin, nelerden kaçınsın?', s:'If you visit my city, you should…'},
+    {c:'Seyahat', t:'Yol ve öneri sormak', p:'Yeni bir şehirde yerel birinden müzenin yolunu ve iyi bir restoran önerisi iste.', s:'Excuse me, could you tell me how to get to…'},
+    {c:'Toplantı', t:'Bir öneriyi savunmak', p:'Ekibine iki adımlı doğrulamayı zorunlu yapmayı öner; bir itirazı kibarca yanıtla.', s:'I suggest we make two-factor authentication…'},
+    {c:'Mülakat', t:'Neden bu iş?', p:'Bu pozisyonu neden istediğini, güçlü yönlerini ve geliştirdiğin bir alanı anlat.', s:"I'm really interested in this role because…"}
+  ],
+  fr: [
+    {c:'Günlük', t:'Kendini tanıt', p:'Adını, nereli olduğunu, nerede yaşadığını ve işini söyle.', s:"Bonjour, je m'appelle…"},
+    {c:'Seyahat', t:'Kafede sipariş', p:'Bir kahve ve bir kruvasan iste, fiyatı sor, hesabı iste.', s:"Bonjour, un café, s'il vous plaît."},
+    {c:'Günlük', t:'Günlük rutin', p:'Kaçta kalktığını, işe nasıl gittiğini ve akşam ne yaptığını anlat.', s:'Je me lève à…'},
+    {c:'Seyahat', t:'Yol sormak', p:'Garın nerede olduğunu ve uzak olup olmadığını sor, teşekkür et.', s:'Excusez-moi, où est la gare ?'},
+    {c:'Günlük', t:'Ailen', p:'Aileni anlat: kaç kişisiniz, kardeşlerin var mı?', s:'Dans ma famille, il y a…'},
+    {c:'Seyahat', t:'Otelde', p:'Rezervasyonunu söyle, kaç gece kalacağını belirt, kahvaltı ve Wi-Fi sor.', s:"Bonjour, j'ai une réservation."},
+    {c:'Günlük', t:'Sevdiklerin', p:'Sevdiğin ve sevmediğin üç şeyi söyle.', s:"J'aime… mais je n'aime pas…"},
+    {c:'Seyahat', t:'Restoranda', p:'İki kişilik masa iste, tavsiye sor, siparişini ver.', s:"Une table pour deux, s'il vous plaît."},
+    {c:'Günlük', t:'Dün ne yaptın?', p:'Dün yaptığın üç şeyi passé composé ile söyle.', s:"Hier, j'ai…"}
+  ]
+};
+
+// Dinle ve izle: yalnızca ücretsiz, bağlantısı doğrulanmış kaynaklar (Eylül 2026). c = kategori, n = ad, d = nasıl kullanılır, u = adres, lv = seviye.
+window.MEDIA = {
+  en: [
+    {c:'Podcast', n:'BBC 6 Minute English', d:'Metinli 6 dakikalık bölümler. Günlük dinleme ve shadowing için ana kaynak.', u:'https://www.bbc.co.uk/learningenglish/english/features/6-minute-english', lv:'B1'},
+    {c:'Podcast', n:'BBC Real Easy English', d:'Yavaş, günlük konular. İlk haftalarda ısınma için.', u:'https://www.bbc.co.uk/learningenglish/english/features/real-easy-english', lv:'A2'},
+    {c:'Video', n:'BBC Learning English (YouTube)', d:'Kısa dersler; ekrandaki İngilizce metinle izle.', u:'https://www.youtube.com/@bbclearningenglish', lv:'A2–B2'},
+    {c:'Video', n:'Easy English', d:'Sokak röportajları. İngilizce altyazıyla izle, sonra altyazısız tekrar et.', u:'https://www.youtube.com/@EasyEnglishVideos', lv:'B1'},
+    {c:'Video', n:"Rachel's English", d:'Telaffuz ve shadowing için kısa videolar.', u:'https://www.youtube.com/@rachelsenglish', lv:'A2–C1'},
+    {c:'İş ve mülakat', n:'BBC English at Work', d:'Ofiste geçen dizi: toplantı, telefon ve e-posta dili.', u:'https://www.bbc.co.uk/learningenglish/english/features/english-at-work', lv:'B1'},
+    {c:'İş ve mülakat', n:'British Council Business English', d:'Toplantı, e-posta ve iş görüşmesi alıştırmaları.', u:'https://learnenglish.britishcouncil.org/free-resources/business', lv:'B1–B2'},
+    {c:'İş ve mülakat', n:'Professor Messer', d:'Ücretsiz Security+ videoları; mesleki kelime dağarcığı için.', u:'https://www.professormesser.com/', lv:'B2'},
+    {c:'Kolay haber ve okuma', n:'VOA Learning English', d:'Yavaş haber ve Let\'s Learn English arşivi.', u:'https://learningenglish.voanews.com/', lv:'A2–B1'},
+    {c:'Kolay haber ve okuma', n:'Breaking News English', d:'Aynı haber farklı seviyelerde; kendi seviyeni seç.', u:'https://breakingnewsenglish.com/', lv:'A2–B2'},
+    {c:'Kolay haber ve okuma', n:'ER Central', d:'Seviyeli okuma metinleri; sözlüksüz, akıcı oku.', u:'https://www.er-central.com/', lv:'A1–B2'},
+    {c:'Hedef seviye', n:'TED Talks', d:'Etkileşimli transkript; "security" araması yap.', u:'https://www.ted.com/talks', lv:'B1–B2'},
+    {c:'Hedef seviye', n:'Darknet Diaries', d:'Siber güvenlik hikâyeleri. B2 hedefi için; şimdilik kısa bölümlerle dene.', u:'https://darknetdiaries.com/', lv:'B2+'},
+    {c:'Araç', n:'YouGlish', d:'Bir ifadenin gerçek videolarda nasıl söylendiğini dinle.', u:'https://youglish.com/', lv:'Her seviye'}
+  ],
+  fr: [
+    {c:'Podcast', n:'Coffee Break French — 1. sezon', d:'Sıfırdan başlayanlar için en uygun podcast. Bölümler ücretsiz; ücretli ders notlarına gerek yok.', u:'https://coffeebreaklanguages.com/coffeebreakfrench/', lv:'A0–A1'},
+    {c:'Video', n:'TV5MONDE Première classe', d:'Başlangıç video alıştırmaları; ana Fransızca video kaynağı.', u:'https://apprendre.tv5monde.com/fr/exercices/premiere-classe', lv:'A1'},
+    {c:'Video', n:'Easy French', d:'Sokak röportajları. Fransızca altyazıyı aç.', u:'https://www.youtube.com/@EasyFrench', lv:'A2+'},
+    {c:'Video', n:'Comme une Française', d:'Günlük hayat ve seyahat durumları.', u:'https://www.youtube.com/@CommeUneFrancaise', lv:'A2–B1'},
+    {c:'Video', n:'Français avec Pierre', d:'Dilbilgisi ve dinleme; ikinci ayda başla.', u:'https://www.youtube.com/@francaisavecpierre', lv:'A2–B1'},
+    {c:'Seyahat', n:'BBC Languages French', d:'Eski arşiv ama temel seyahat ifadeleri için iyi.', u:'https://www.bbc.co.uk/languages/french/', lv:'A0–A1'},
+    {c:'Kolay haber', n:'RFI Journal en français facile', d:'Metinli 10 dakikalık haber. 3.–4. aydan sonra.', u:'https://www.rfi.fr/fr/podcasts/journal-en-fran%C3%A7ais-facile/', lv:'A2–B1'},
+    {c:'Kolay haber', n:'1jour1actu', d:'Çocuklar için haber; sade Fransızca.', u:'https://www.1jour1actu.com/', lv:'A2'},
+    {c:'Sonra', n:'innerFrench (YouTube)', d:'Yavaş ve anlaşılır Fransızca; B1\'e yaklaşınca.', u:'https://www.youtube.com/@innerFrench', lv:'B1'}
+  ]
+};
