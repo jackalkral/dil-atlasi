@@ -8,7 +8,8 @@ button,a,input{font:inherit}button{color:inherit;cursor:pointer}button,a{touch-a
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* Üst bölüm */
-.top{position:sticky;top:0;z-index:10;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:rgba(7,16,29,.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+/* Başlıkta backdrop-filter yok: iPhone'da sabitlenmiş başlığın kendi düğmelerini de bulanık/soluk çiziyordu (aşağı çekince netleşiyordu). Düz arka plan. */
+.top{position:sticky;top:0;z-index:10;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--bg);border-bottom:1px solid var(--line)}
 .top-inner{max-width:880px;margin:0 auto;display:flex;align-items:center;gap:12px;justify-content:space-between}
 .brand{display:flex;align-items:center;gap:10px;font-weight:800}
 .mark{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:linear-gradient(145deg,var(--accent),#4fa7ff);color:#06111d;font-weight:900}
