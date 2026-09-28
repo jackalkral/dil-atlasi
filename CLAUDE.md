@@ -91,6 +91,10 @@ Mevcut kapsam için framework gerekli değildir. Bileşenler büyürse Vite + Re
 - Bağımlılık eklenirse sürüm sabitlenmeli ve tedarik zinciri riski değerlendirilmelidir.
 - `index.html` içinde CSP meta etiketi var (`default-src 'self'`). Satır içi betik ve `style=""` özniteliği ekleme; stil `styles.css`'e, betik `app.js`'e gider. `innerHTML` kullanma, `el()` yardımcısı ve `textContent` kullan.
 
+## Çalışma akışı
+
+- Kullanıcı isteği (Eylül 2026): değişiklik bitip iki test de geçince PR aç ve **sormadan birleştir**; her seferinde onay isteme. Birleştirdikten sonra ne değiştiğini kısaca bildir.
+
 ## Kabul testi
 
 Otomatik: `node tests/content.test.mjs` ve tarayıcıda `tests/smoke.html` (99 kontrol). Her değişiklikten sonra ikisi de geçmeli.
