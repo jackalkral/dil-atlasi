@@ -11,9 +11,9 @@ const languages = {
 };
 // Görev kodları sabittir; her biri Bugün sekmesindeki bir aşamaya karşılık gelir.
 // Uygulama sürümü: sw.js CACHE_NAME ile aynı olmalı (içerik testi denetler); İlerleme'de ve tanılama satırında görünür.
-const APP_VERSION = 'v32';
+const APP_VERSION = 'v33';
 const tasks = ['review', 'lesson', 'shadow', 'speak'];
-const TABS = ['bugun', 'yuru', 'izle', 'ilerleme'];
+const TABS = ['bugun', 'oku', 'yuru', 'izle', 'ilerleme'];
 
 const $ = s => document.querySelector(s);
 const el = (tag, props = {}, ...children) => { const e = document.createElement(tag); Object.assign(e, props); e.append(...children); return e; };
@@ -157,17 +157,20 @@ function voiceGender(v) {
 const genderPref = () => ['f', 'm'].includes(store.get(GENDER_KEY)) ? store.get(GENDER_KEY) : '';
 const byScore = (list, lang) => [...list].sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
 // Seçim sırası: elle seçilen ses (tercih edilen cinsiyete aykırı değilse) → tercih edilen cinsiyetteki en doğal ses → en doğal ses.
-function voiceFor(lang) {
-  const list = voiceList(lang), pick = list.find(v => v.voiceURI === chosenVoices()[lang.slice(0, 2)]), g = genderPref();
-  if (pick && (!g || voiceGender(pick) !== (g === 'f' ? 'm' : 'f'))) return pick;
+// force: diyaloglarda konuşmacının cinsiyeti ('f' | 'm'); elle seçilen sesin ve genel tercihin önüne geçer.
+function voiceFor(lang, force = '') {
+  const list = voiceList(lang), pick = list.find(v => v.voiceURI === chosenVoices()[lang.slice(0, 2)]), g = force || genderPref();
+  if (pick && (!g || voiceGender(pick) !== (g === 'f' ? 'm' : 'f')) && (!force || voiceGender(pick) === force)) return pick;
   const same = g ? list.filter(v => voiceGender(v) === g) : [];
   return byScore(same.length ? same : list, lang)[0] || null;
 }
 const genderAvailable = (lang, g) => voiceList(lang).some(v => voiceGender(v) === g);
 const rateFactor = () => [0.8, 1, 1.15].includes(+store.get(RATE_KEY)) ? +store.get(RATE_KEY) : 1;
-function utter(text, lang, rate) {
+function utter(text, lang, rate, g = '') {
   AUDIO_USE.tts++;
-  const u = new SpeechSynthesisUtterance(text), v = voiceFor(lang);
+  const u = new SpeechSynthesisUtterance(text), v = voiceFor(lang, g);
+  // Diyalog: o cinsiyette ses yoksa iki konuşmacı ses perdesiyle ayrılır.
+  if (g && voiceGender(v) !== g) u.pitch = g === 'f' ? 1.25 : .8;
   // Mikrofon açıkken çalan ses: bitene kadar ve bittikten sonra ASR_ECHO_MS boyunca tanıyıcıdan gelenler yok sayılır ('end' gelmezse süre tahmini).
   if (ASR.state === 'listening') {
     if (ASR.log.length < 40) ASR.log.push('tts');
@@ -186,6 +189,7 @@ let audioRun = 0;
 function stopAudio() {
   audioRun++;
   if (drill.playing) stopDrill();
+  readPlayEnd();
   // Konuşmuyorsa cancel() çağrılmaz: iPhone'da gereksiz ses oturumu değişikliği mikrofonu etkileyebilir.
   if ('speechSynthesis' in window && (speechSynthesis.speaking || speechSynthesis.pending)) speechSynthesis.cancel();
   document.querySelectorAll('audio').forEach(a => { a.onended = null; a.pause(); });
@@ -199,9 +203,10 @@ const ttsEcho = () => Date.now() < ASR.echoUntil;
 // iPhone/iPad (iPadOS masaüstü Safari gibi görünür). Testler window.DA_IOS ile zorlayabilir.
 const isIOS = () => window.DA_IOS ?? (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 // onEnd: seslendirme bitince (başka bir ses araya girmediyse) bir kez çağrılır; 'end' gelmezse süre tahmini.
-function speak(text, lang = languages[active].voice, rate = .85, onEnd) {
+// g: diyalogda konuşmacının sesi ('f' | 'm').
+function speak(text, lang = languages[active].voice, rate = .85, onEnd, g = '') {
   if (!('speechSynthesis' in window)) return;
-  stopAudio(); const run = audioRun, u = utter(text, lang, rate);
+  stopAudio(); const run = audioRun, u = utter(text, lang, rate, g);
   if (onEnd) { let fired = false; const f = () => { if (fired || run !== audioRun) return; fired = true; onEnd(); }; u.addEventListener('end', f); u.addEventListener('error', f); setTimeout(f, 2000 + text.length * 150); }
   speechSynthesis.speak(u);
 }
@@ -217,7 +222,7 @@ const speakBtn = (text, lang) => el('button', {type:'button', className:'speak',
 // ---------- Aralıklı tekrar (Leitner kutuları) ----------
 // Önceki derslerin kelime (w) ve cümleleri (s) karta dönüşür. Bildim → kutu +1 (1/3/7/14/30 gün), Tekrar → yarın.
 const SRS_KEY = 'dil-atlasi-srs', INTERVALS = [1, 3, 7, 14, 30];
-const CARD_ID = /^(en|fr|it|de):(\d{1,3}:[ws]\d{1,2}|n:[a-z0-9]{4,14}|f:\d{1,4})$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
+const CARD_ID = /^(en|fr|it|de):(\d{1,3}:[ws]\d{1,2}|n:[a-z0-9]{4,14}|f:\d{1,4}|r:\d{1,2}:\d{1,2})$/, DATE = /^\d{4}-\d{2}-\d{2}$/;
 // Hata defteri: yapay zekânın ya da kendinin düzelttiği cümleler kullanıcı kartı olur (dil-atlasi-notlar).
 // Kullanıcı girdisidir: yalnızca textContent ile gösterilir, uzunluk sınırlıdır.
 const NOTES_KEY = 'dil-atlasi-notlar', NOTE_MAX = 200, NOTES_PER_DAY = 2;
@@ -248,6 +253,9 @@ function dueCards(lang = active, limit = 60) {
   for (let k = 0; k < learned; k++) { const id = `${lang}:f:${k}`, c = cards[id], [target, tr, pron, , , emoji] = fl[k]; if (!c || c.d <= today) out.push({id, target, tr, pron, emoji, box: c ? c.b : -1, due: c ? c.d : ''}); }
   // Hata defteri kartları eklendikleri günün ertesinden itibaren gelir.
   for (const [id, n] of Object.entries(loadNotes().items)) { if (!id.startsWith(lang + ':') || n.d >= today) continue; const c = cards[id]; if (!c || c.d <= today) out.push({id, target:n.t, tr:n.tr, box: c ? c.b : -1, due: c ? c.d : ''}); }
+  // Okuma anahtar kelimeleri: "Kartlara ekle" dendiği günün ertesinden itibaren.
+  const rc = loadRead().cards;
+  stories().forEach((st, si) => { const added = rc[`${lang}:${si}`]; if (!DATE.test(added || '') || added >= today) return; st.k.forEach((k, ki) => { const id = `${lang}:r:${si}:${ki}`, c = cards[id]; if (!c || c.d <= today) out.push({id, target:k[SLI[lang] - 1], tr:k[4], box: c ? c.b : -1, due: c ? c.d : ''}); }); });
   // Önce günü gelmiş tekrarlar (en eski önce), sonra yeni kartlar.
   return out.sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')).slice(0, limit);
 }
@@ -298,7 +306,7 @@ function renderLangs() {
     nav.append(b);
   });
 }
-function switchLang(id) { stopDrill(); releaseMic(); active = id; store.set('dil-atlasi-active', id); openStep = null; render(); }
+function switchLang(id) { stopDrill(); stopAudio(); releaseMic(); readOpen = null; active = id; store.set('dil-atlasi-active', id); openStep = null; render(); }
 function switchTab(id) {
   if (id !== tab) { stopAudio(); releaseMic(); }
   tab = id; store.set('dil-atlasi-tab', id);
@@ -326,6 +334,9 @@ function renderToday() {
   $('#todayBar').style.width = `${doneSteps / STEPS.length * 100}%`;
   $('#todayHint').textContent = doneSteps === STEPS.length ? 'Bugünlük tamam. Akşam İzle sekmesinden kısa bir bölüm açabilirsin.' : 'Adımları sırayla yap; her biri 5–10 dakika. Gün içinde bölebilirsin.';
   $('#planHint').textContent = planHint();
+  const ns = nextStory(), rh = $('#readHint');
+  rh.replaceChildren(); rh.hidden = ns < 0;
+  if (ns >= 0) { const st = stories()[ns]; rh.append(`${st.kind === 'dialog' ? '💬 Diyalog' : '📖 Okuma'} açık: „${storyTitle(st)}” (${st.t.tr}). `, el('button', {type:'button', className:'text-link', textContent:'Oku →', onclick: () => { readOpen = ns; renderRead(); switchTab('oku'); }})); }
   if (openStep === null) openStep = STEPS.findIndex(s => !(isDone(s.task) || (s.task === 'review' && !due.length)));
   const box = $('#steps'); box.replaceChildren();
   STEPS.forEach((s, i) => {
@@ -794,6 +805,116 @@ function renderRes(target, items) {
   items.forEach(r => { if (!groups.has(r.c)) { const list = el('div', {className:'res'}); groups.set(r.c, list); box.append(el('div', {className:'group-title', textContent:r.c}), list); } groups.get(r.c).append(resLink(r)); });
 }
 
+// ---------- Oku: kısa hikâyeler ve diyaloglar ----------
+// Metinler content/stories.js (window.STORIES); dört dilde paralel, Türkçesi ortak. Metin, ders günü story.day'e gelince açılır.
+// dil-atlasi-okuma = {v:1, done:{"fr:3": {d, s}}, cards:{"fr:3": "YYYY-MM-DD"}} — done: anlama testi (gün, doğru sayısı),
+// cards: anahtar kelimelerin kartlara eklendiği gün (kartlar ertesi gün gelir; kimlik dil:r:metin:kelime).
+const READ_KEY = 'dil-atlasi-okuma', SLI = {en:1, fr:2, it:3, de:4};
+const stories = () => window.STORIES || [];
+function loadRead() { const v = readJson(READ_KEY); return v?.v === 1 && v.done && typeof v.done === 'object' && v.cards && typeof v.cards === 'object' ? v : {v:1, done:{}, cards:{}}; }
+function saveRead(r) { store.set(READ_KEY, JSON.stringify(r)); }
+const storyUnlocked = (si, lang = active) => getLessonDay(lang) >= stories()[si].day;
+const storyTitle = (st, lang = active) => st.t[lang] || st.t.tr;
+// Sıradaki okuma: açılmış ve anlama testi yapılmamış en yeni metin.
+function nextStory(lang = active) { const done = loadRead().done; for (let si = stories().length - 1; si >= 0; si--) if (storyUnlocked(si, lang) && !done[`${lang}:${si}`]) return si; return -1; }
+let readOpen = null, readPlay = null;
+function renderRead() {
+  const list = $('#readList'), view = $('#readView'); if (!list) return;
+  const all = stories(), r = loadRead(), day = getLessonDay();
+  list.hidden = readOpen !== null; view.hidden = readOpen === null;
+  if (readOpen !== null && (!all[readOpen] || !storyUnlocked(readOpen))) readOpen = null;
+  if (readOpen === null) {
+    const open = all.filter((_, si) => storyUnlocked(si)).length, read = all.filter((_, si) => r.done[`${active}:${si}`]).length;
+    list.replaceChildren(el('div', {className:'card'},
+      el('h2', {textContent:`${languages[active].name} okumaları`}),
+      el('p', {className:'small', textContent: all.length ? `${open}/${all.length} metin açık · ${read} tanesinin testini çözdün. Yeni metin, derslerde ilerledikçe açılır.` : 'Metinler yüklenemedi.'}),
+      el('div', {className:'story-list'}, ...all.map((st, si) => {
+        const unlocked = storyUnlocked(si), res = r.done[`${active}:${si}`];
+        const b = el('button', {type:'button', className:`story-item${unlocked ? '' : ' locked'}${res ? ' read' : ''}`, disabled: !unlocked, onclick: () => { readOpen = si; renderRead(); window.scrollTo({top: 0}); }},
+          el('span', {className:'story-ico', textContent: st.kind === 'dialog' ? '💬' : '📖'}),
+          el('span', {className:'story-name'}, el('strong', {textContent:storyTitle(st)}), el('span', {textContent:`${st.t.tr} · ${st.kind === 'dialog' ? 'Diyalog' : 'Hikâye'} · ${st.s.length} cümle`})),
+          el('span', {className:'story-state', textContent: !unlocked ? `🔒 Ders ${st.day}` : res ? `✓ ${res.s}/${st.q.length}` : 'Yeni'}));
+        if (!unlocked) b.setAttribute('aria-label', `${storyTitle(st)} — Ders ${st.day}'de açılır (şu an Ders ${day})`);
+        return b;
+      }))));
+    return;
+  }
+  const si = readOpen, st = all[si], li = SLI[active], voice = languages[active].voice, sid = `${active}:${si}`;
+  const lines = st.s.map(row => {
+    const who = st.sp?.[row[0]], tr = el('span', {className:'tr', textContent:row[5], hidden:true});
+    const btn = el('button', {type:'button', className:'line-text', onclick: () => { tr.hidden = !tr.hidden; btn.setAttribute('aria-expanded', !tr.hidden); }},
+      who ? el('span', {className:`who ${who[1]}`, textContent:who[0]}) : '', el('span', {className:'tx', textContent:row[li]}), el('span', {className:'cue', textContent:'🗣 Sıra sende: Türkçesine bak, yüksek sesle söyle.'}), tr);
+    btn.setAttribute('aria-expanded', 'false');
+    return el('div', {className:`line${who ? ' ' + row[0] : ''}`}, btn, el('button', {type:'button', className:'speak', textContent:'▶', ariaLabel:`Seslendir: ${row[li]}`, onclick: () => speak(row[li], voice, .85, null, who?.[1] || '')}));
+  });
+  const listenBtn = el('button', {type:'button', className:'btn', textContent:'▶ Hepsini dinle', onclick: () => readPlay?.btn === listenBtn ? stopAudio() : playStory(st, lines, '', listenBtn)});
+  const roleBtns = st.kind === 'dialog' ? Object.entries(st.sp).map(([k, [name]]) => { const b = el('button', {type:'button', className:'btn secondary', textContent:`🎭 Sen ${name} ol`, onclick: () => readPlay?.btn === b ? stopAudio() : playStory(st, lines, k, b)}); b.dataset.label = b.textContent; return b; }) : [];
+  listenBtn.dataset.label = listenBtn.textContent;
+  // Anahtar kelimeler → tekrar kartları (ertesi günden itibaren).
+  const added = r.cards[sid];
+  const addBtn = el('button', {type:'button', className: added ? 'btn secondary' : 'btn', disabled: !!added, textContent: added ? (added >= localDate() ? 'Kartlara eklendi ✓ (yarından itibaren)' : 'Kartlarda ✓') : '＋ Kartlara ekle',
+    onclick: () => { const x = loadRead(); x.cards[sid] = localDate(); saveRead(x); renderRead(); toast('5 kelime tekrar kartlarına eklendi; yarından itibaren Tekrar adımında gelecek.'); }});
+  const keys = el('div', {className:'items'}, ...st.k.map(k => el('div', {className:'item'}, el('div', {}, el('strong', {textContent:k[li - 1]}), el('span', {textContent:k[4]})), speakBtn(k[li - 1], voice))));
+  view.replaceChildren(
+    el('button', {type:'button', className:'back-link', textContent:'← Tüm metinler', onclick: () => { stopAudio(); readOpen = null; renderRead(); }}),
+    el('div', {className:'card story'},
+      el('div', {className:'eyebrow', textContent:`${st.kind === 'dialog' ? 'Diyalog' : 'Hikâye'} · Ders ${st.day}`}),
+      el('h1', {className:'lesson-title', textContent:storyTitle(st)}), el('p', {className:'small', textContent:st.t.tr}),
+      el('p', {className:'small', textContent: st.kind === 'dialog' ? 'Önce dinle, sonra canlandır: diğer rolü uygulama okur; sıra sana gelince Türkçesini görürsün, yüksek sesle söylersin, ardından doğrusunu duyarsın. Cümleye dokun: Türkçesi açılır.' : 'Önce bir kez dinle, sonra cümle cümle oku. Anlamadığın cümleye dokun: Türkçesi açılır.'}),
+      el('div', {className:'story-controls'}, listenBtn, ...roleBtns),
+      el('div', {className:'story-lines'}, ...lines)),
+    el('div', {className:'card'}, el('h2', {textContent:'Anahtar kelimeler'}), el('p', {className:'small', textContent:'Metnin en önemli 5 kelimesi. Kartlara eklersen yarından itibaren aralıklı tekrarda karşına çıkar.'}), keys, el('div', {className:'step-actions'}, addBtn)),
+    el('div', {className:'card'}, el('h2', {textContent:'Anladın mı?'}), storyQuiz(st, sid)));
+}
+// Anlama testi: her sorunun ilk cevabı sayılır; bitince sonuç kaydedilir (en iyi sonuç kalır).
+function storyQuiz(st, sid) {
+  const box = el('div', {className:'story-quiz'}), prev = loadRead().done[sid];
+  let answered = 0, correct = 0;
+  const result = el('p', {className:'small quiz-result', textContent: prev ? `Önceki sonucun: ${prev.s}/${st.q.length}.` : ''}); result.setAttribute('role', 'status');
+  st.q.forEach(([q, opts, ans], qi) => {
+    const btns = opts.map((o, oi) => el('button', {type:'button', className:'chip opt', textContent:o, onclick: () => {
+      btns.forEach(b => { b.disabled = true; }); btns[ans].classList.add('right'); if (oi !== ans) btns[oi].classList.add('wrong'); else correct++;
+      if (++answered === st.q.length) {
+        const x = loadRead(), best = Math.max(correct, x.done[sid]?.s ?? 0); x.done[sid] = {d: localDate(), s: best}; saveRead(x);
+        result.textContent = `${correct}/${st.q.length} doğru. ${correct === st.q.length ? 'Harika!' : 'Metni bir kez daha dinleyip tekrar dene.'}`;
+        if (correct < st.q.length) result.append(' ', el('button', {type:'button', className:'btn secondary small-btn', textContent:'Yeniden çöz', onclick: () => box.replaceWith(storyQuiz(st, sid))}));
+        renderToday();
+      }
+    }}));
+    box.append(el('div', {className:'quiz-q'}, el('p', {textContent:`${qi + 1}. ${q}`}), el('div', {className:'opts'}, ...btns)));
+  });
+  box.append(result);
+  return box;
+}
+// Metni sırayla okur (diyalogda konuşmacıya göre kadın/erkek ses). role verilirse o rolün cümlelerinde kullanıcı konuşur:
+// Türkçesi görünür, hedef metin gizlenir, cümle uzunluğuna göre bekler, sonra doğrusu okunur. Her başka ses zinciri durdurur (audioRun).
+function playStory(st, lines, role, btn) {
+  if (!('speechSynthesis' in window)) return;
+  stopAudio(); const run = audioRun, li = SLI[active], voice = languages[active].voice; let k = 0;
+  readPlay = {btn, lines}; btn.textContent = '■ Durdur';
+  const say = (row, then) => {
+    const u = utter(row[li], voice, .85, st.sp?.[row[0]]?.[1] || ''); let fired = false;
+    const f = () => { if (fired || run !== audioRun) return; fired = true; then(); };
+    u.addEventListener('end', f); u.addEventListener('error', f); setTimeout(f, 4000 + row[li].length * 200); speechSynthesis.speak(u);
+  };
+  const next = () => {
+    if (run !== audioRun) return;
+    lines.forEach(e => e.classList.remove('now', 'yours'));
+    if (k >= st.s.length) { readPlayEnd(); if (role) toast('Canlandırma bitti. Bir de diğer rolü dene.'); return; }
+    const i = k++, row = st.s[i], e = lines[i]; e.classList.add('now'); e.scrollIntoView?.({block:'nearest'});
+    if (role && row[0] === role) {
+      e.classList.add('yours'); e.querySelector('.tr').hidden = false;
+      setTimeout(() => { if (run !== audioRun) return; e.classList.remove('yours'); say(row, () => setTimeout(next, 500)); }, 1800 + row[li].split(/\s+/).length * 650);
+    } else say(row, () => setTimeout(next, 600));
+  };
+  next();
+}
+function readPlayEnd() {
+  if (!readPlay) return;
+  const {btn, lines} = readPlay; readPlay = null;
+  btn.textContent = btn.dataset.label; lines.forEach(e => e.classList.remove('now', 'yours'));
+}
+
 // ---------- İlerleme ----------
 function studiedOn(date, lang = active) { return tasks.some(t => isDone(t, lang, date)); }
 function getStreak() { let s = 0; for (let i = studiedOn(localDate()) ? 0 : 1; i < 365; i++) { if (studiedOn(localDate(-i))) s++; else break; } return s; }
@@ -815,9 +936,23 @@ function renderProgress() {
   const h = $('#history'); h.replaceChildren(); let studied = 0;
   for (let i = 27; i >= 0; i--) { const n = stepsOn(localDate(-i)); if (n) studied++; h.append(el('span', {className:`history-day ${n === 4 ? 'full' : n ? 'some' : ''}`, title:`${localDate(-i)} · ${n}/4`})); }
   h.setAttribute('aria-label', `Son 28 gün: ${studied} gün çalışıldı`);
-  $('#lessonList').replaceChildren(...lessonsFor().map((ls, k) => el('li', {className: k < day - 1 ? 'done' : k === day - 1 ? 'current' : '', textContent:ls.t})));
+  // Yol haritası: her ders bir durak; açılan okuma metni ve haftalık hedefler (gerçekçi, A0 → A1 girişi) aynı çizgide.
+  const unlocks = new Map(stories().map(st => [st.day, st]));
+  $('#lessonList').replaceChildren(...lessonsFor().flatMap((ls, k) => {
+    const n = k + 1, st = unlocks.get(n), cur = n === day;
+    const li = el('li', {className: n < day ? 'done' : cur ? 'current' : ''}, el('span', {className:'node', textContent: n < day ? '✓' : n}), el('span', {className:'rm-body'}, el('span', {className:'rm-title', textContent:ls.t}),
+      cur ? el('span', {className:'here', textContent:'Şu an buradasın'}) : '', st ? el('span', {className:'rm-story', textContent:`${st.kind === 'dialog' ? '💬' : '📖'} ${storyTitle(st)}`}) : ''));
+    if (cur) li.setAttribute('aria-current', 'step');
+    return MILESTONES[n] ? [li, el('li', {className:`milestone${n < day ? ' reached' : ''}`}, el('span', {className:'node', textContent:'🏁'}), el('span', {className:'rm-body'}, el('span', {className:'rm-title', textContent:`${n}. ders sonunda`}), el('span', {textContent:MILESTONES[n]})))] : [li];
+  }));
 }
 
+const MILESTONES = {
+  7: 'Selamlaşır, kendini ve aileni tanıtır, sayıları söyler, kafede sipariş verirsin.',
+  14: 'Günlük rutinini anlatır, saat ve gün söyler, yol sorar, alışverişte fiyat sorarsın.',
+  21: 'Hava, sevdiklerin ve sağlık hakkında kısa cümleler kurar; otel ve restoranda idare edersin.',
+  30: 'Dün ne yaptığını ve yarın ne yapacağını kısaca anlatır, yardım ister, kendini birkaç cümleyle tanıtırsın (A1\'e giriş).'
+};
 function renderPlan() {
   const l = languages[active], p = planFor();
   $('#planTitle').textContent = `${l.name} haftalık planı`;
@@ -910,7 +1045,7 @@ function render() {
   renderRes('#audioRes', window.MEDIA?.[active]?.audio); renderRes('#videoRes', window.MEDIA?.[active]?.video);
   if (!drill.playing) { $('#drillInfo').textContent = `Bugün: ${drillItems().length} ifade · yaklaşık ${Math.ceil(drillItems().length * 9 / 60)} dakika. Ekranın açık kalması gerekir.`; }
   $('#appVersion').textContent = `Sürüm ${APP_VERSION}`;
-  renderProgress(); renderPlan(); renderStats(); renderVoiceSettings(); renderFreqCard();
+  renderProgress(); renderPlan(); renderStats(); renderVoiceSettings(); renderFreqCard(); renderRead();
 }
 
 // ---------- Odak sayacı ----------
@@ -946,7 +1081,7 @@ $('#exportData').onclick = () => {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (TASK_KEY.test(k) && store.get(k) === '1') data[k] = '1'; }
   // Yedek biçimi 2: 1'e ek olarak hatırlama ölçüsü, haftalık plan ve günlük istatistik. 1 ve 2 geri yüklenebilir.
-  const s = loadSrs(), srs = s.cards, backup = {app:'dil-atlasi', schemaVersion:2, exportedAt:new Date().toISOString(), settings:{active, timer:duration, rate:rateFactor()}, tasks:data, srs, srsVersion:2, srsStats:s.stats || {}, notes:loadNotes().items, freq: readJson(FREQ_KEY) || {}, plan:loadPlan().langs, log:loadLog().d};
+  const s = loadSrs(), srs = s.cards, backup = {app:'dil-atlasi', schemaVersion:2, exportedAt:new Date().toISOString(), settings:{active, timer:duration, rate:rateFactor()}, tasks:data, srs, srsVersion:2, srsStats:s.stats || {}, notes:loadNotes().items, freq: readJson(FREQ_KEY) || {}, plan:loadPlan().langs, log:loadLog().d, reading:loadRead()};
   const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'}));
   const a = el('a', {href:url, download:`dil-atlasi-yedek-${localDate()}.json`}); document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   setDataStatus(`${Object.keys(data).length} görev kaydı ve ${Object.keys(srs).length} tekrar kartı indirildi.`);
@@ -984,6 +1119,13 @@ $('#importFile').onchange = async e => {
       for (const [d, day] of Object.entries(backup.log)) { if (!DATE_RE.test(d) || !day || typeof day !== 'object') continue; for (const lang of Object.keys(languages)) { const x = day[lang]; if (!x || typeof x !== 'object') continue; const cur = ((l.d[d] ||= {})[lang] ||= {}); LOG_FIELDS.forEach(f => { const v = x[f]; if (Number.isInteger(v) && v > 0 && v < 1e5 && v > (cur[f] || 0)) cur[f] = v; }); if (!Object.keys(cur).length) delete l.d[d][lang]; } if (!Object.keys(l.d[d] || {}).length) delete l.d[d]; }
       saveLog(l);
     }
+    // Okuma: bu cihazda olmayan kayıtlar eklenir; testte daha iyi sonuç kalır.
+    if (backup.reading?.v === 1) {
+      const rd = loadRead(), RID = /^(en|fr|it|de):\d{1,2}$/;
+      for (const [id, x] of Object.entries(backup.reading.done || {})) { if (!RID.test(id) || !x || !DATE.test(x.d) || !Number.isInteger(x.s) || x.s < 0 || x.s > 10) continue; if (!rd.done[id] || x.s > rd.done[id].s) rd.done[id] = {d:x.d, s:x.s}; }
+      for (const [id, d] of Object.entries(backup.reading.cards || {})) { if (RID.test(id) && DATE.test(d) && !rd.cards[id]) rd.cards[id] = d; }
+      saveRead(rd);
+    }
     const st = backup.settings || {};
     if ([0.8, 1, 1.15].includes(st.rate)) store.set(RATE_KEY, String(st.rate));
     if (languages[st.active]) { active = st.active; store.set('dil-atlasi-active', active); }
@@ -1002,6 +1144,7 @@ $('#resetLang').onclick = () => {
   const s = loadSrs(); Object.keys(s.cards).forEach(id => { if (id.startsWith(active + ':')) delete s.cards[id]; }); saveSrs(s);
   const n = loadNotes(); Object.keys(n.items).forEach(id => { if (id.startsWith(active + ':')) delete n.items[id]; }); saveNotes(n);
   saveFreqState(active, {on: freqState().on, done: 0, last: ''});
+  const rd = loadRead(); ['done', 'cards'].forEach(f => Object.keys(rd[f]).forEach(id => { if (id.startsWith(active + ':')) delete rd[f][id]; })); saveRead(rd); readOpen = null;
   const l2 = loadLog(); Object.values(l2.d).forEach(day => { delete day[active]; }); saveLog(l2);
   dayCache.clear(); openStep = null; render(); switchTab('bugun');
 };

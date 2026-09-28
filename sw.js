@@ -1,8 +1,8 @@
-const CACHE_NAME = 'dil-atlasi-v32';
+const CACHE_NAME = 'dil-atlasi-v33';
 // Stil ve betik dosyaları index.html'de sürümlü adla (?v=…) istenir ve önbellekte de o adla durur. Böylece ağdan gelen yeni
 // index.html hiçbir zaman eski önbellekteki CSS/JS ile karışmaz (v31'de karıştı: yeni sayfa eski stille açıldı, tema düğmesi çalışmadı).
 // Sürüm dört yerde aynı olmalı: CACHE_NAME, APP_VERSION (app.js), index.html ?v= ve buradaki ?v= — içerik testi denetler.
-const APP_SHELL = ['./', './index.html', './styles.css?v=v32', './app.js?v=v32', './theme.js?v=v32', './content/en.js?v=v32', './content/fr.js?v=v32', './content/it.js?v=v32', './content/de.js?v=v32', './content/media.js?v=v32', './content/emoji.js?v=v32', './content/freq-en.js?v=v32', './content/freq-fr.js?v=v32', './content/freq-it.js?v=v32', './content/freq-de.js?v=v32', './fonts/inter-latin.woff2', './fonts/inter-latin-ext.woff2', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
+const APP_SHELL = ['./', './index.html', './styles.css?v=v33', './app.js?v=v33', './theme.js?v=v33', './content/en.js?v=v33', './content/fr.js?v=v33', './content/it.js?v=v33', './content/de.js?v=v33', './content/media.js?v=v33', './content/emoji.js?v=v33', './content/freq-en.js?v=v33', './content/freq-fr.js?v=v33', './content/freq-it.js?v=v33', './content/freq-de.js?v=v33', './content/stories.js?v=v33', './fonts/inter-latin.woff2', './fonts/inter-latin-ext.woff2', './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png'];
 
 // Yeni sürüm kendiliğinden devreye girmez; sayfa "Yenile" onayıyla SKIP_WAITING gönderir.
 self.addEventListener('install', event => {

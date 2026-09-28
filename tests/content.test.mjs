@@ -9,7 +9,7 @@ const check = (ok, msg) => { if (ok) passes++; else { fails++; console.error('�
 
 // İçerik dosyalarını tarayıcıdaki gibi tek bir window nesnesine yükle.
 const ctx = {window: {}}; vm.createContext(ctx);
-for (const f of ['en', 'fr', 'it', 'de', 'media', 'emoji', 'freq-en', 'freq-fr', 'freq-it', 'freq-de']) vm.runInContext(read(`content/${f}.js`), ctx, {filename: f});
+for (const f of ['en', 'fr', 'it', 'de', 'media', 'emoji', 'freq-en', 'freq-fr', 'freq-it', 'freq-de', 'stories']) vm.runInContext(read(`content/${f}.js`), ctx, {filename: f});
 const {LESSONS, MEDIA} = ctx.window;
 const LANGS = ['en', 'fr', 'it', 'de'];
 
@@ -71,6 +71,21 @@ for (const lang of LANGS) {
   check(/CC BY-SA 4\.0/.test(head) && /FrequencyWords/.test(head), `freq-${lang}: lisans ve kaynak başlığı olmalı`);
 }
 check(/FrequencyWords/.test(read('index.html')) && /by-sa\/4\.0/.test(read('index.html')), 'Uygulamada sıklık verisinin kaynağı ve lisansı görünmeli');
+
+// 2e) Okuma metinleri: her cümle dört dilde + Türkçe, 5 anahtar kelime, geçerli sorular, günler artan ve ders sayısı içinde.
+const {STORIES} = ctx.window;
+check(Array.isArray(STORIES) && STORIES.length >= 10, `okuma: en az 10 metin olmalı (${STORIES?.length})`);
+(STORIES || []).forEach((st, si) => {
+  const where = `okuma #${si + 1} (${st.t?.tr})`, str = v => typeof v === 'string' && v.trim() !== '';
+  check(Number.isInteger(st.day) && st.day >= 1 && st.day <= LESSONS.en.length && (si === 0 || st.day > STORIES[si - 1].day), `${where}: day 1–${LESSONS.en.length} ve artan olmalı`);
+  check(['story', 'dialog'].includes(st.kind) && ['tr', ...LANGS].every(l => str(st.t?.[l])), `${where}: tür ve beş dilde başlık olmalı`);
+  check(Array.isArray(st.s) && st.s.length >= 5 && st.s.length <= 14, `${where}: 5–14 cümle olmalı`);
+  if (st.kind === 'dialog') check(['A', 'B'].every(k => str(st.sp?.[k]?.[0]) && ['f', 'm'].includes(st.sp[k][1])), `${where}: diyalogda A/B konuşmacı ve ses olmalı`);
+  st.s.forEach((row, i) => check(row.length === 6 && row.slice(1).every(str) && (st.kind === 'dialog' ? ['A', 'B'].includes(row[0]) : row[0] === ''), `${where} cümle ${i + 1}: konuşmacı + 5 dil olmalı`));
+  check(st.k?.length === 5 && st.k.every(k => k.length === 5 && k.every(str)), `${where}: 5 anahtar kelime (4 dil + Türkçe) olmalı`);
+  check(st.q?.length === 3 && st.q.every(([q, o, a]) => str(q) && Array.isArray(o) && o.length >= 2 && o.every(str) && Number.isInteger(a) && a >= 0 && a < o.length), `${where}: 3 geçerli soru olmalı`);
+  check(!/[<>]/.test(JSON.stringify(st)), `${where}: HTML içermemeli`);
+});
 
 // 2d) Sürüm: app.js APP_VERSION, sw.js CACHE_NAME ile aynı olmalı (telefondaki sürümü doğrulamak için gösterilir).
 { const av = read('app.js').match(/const APP_VERSION = '(v\d+)'/)?.[1], cn = read('sw.js').match(/CACHE_NAME = 'dil-atlasi-(v\d+)'/)?.[1];

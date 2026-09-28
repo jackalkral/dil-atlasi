@@ -398,7 +398,51 @@
     w.Date.now = realNow;
     $('#timerToggle').click(); check($('#timerToggle').textContent === 'Devam et', 'Sayaç durdu');
     $('#timerReset').click(); check($('#timerDisplay').textContent === '45:00', 'Sayaç sıfırlandı');
-    check($$('#lessonList li').length === 30 && $('#lessonList li.current').textContent === w.LESSONS.en[1].t, '30 günlük rota, güncel ders işaretli');
+    check($$('#lessonList li:not(.milestone)').length === 30 && $('#lessonList li.current .rm-title').textContent === w.LESSONS.en[1].t && /Şu an buradasın/.test($('#lessonList li.current').textContent) && $$('#lessonList li.milestone').length === 4, 'Yol haritası: 30 durak, güncel derste "Şu an buradasın", 4 hedef');
+    check($$('#lessonList .rm-story').length === w.STORIES.length && $$('#lessonList li')[0].querySelector('.rm-story').textContent.includes(w.STORIES[0].t.en), 'Yol haritasında okuma metinlerinin açıldığı dersler işaretli');
+
+    // 8b) Oku: metinler ders gününe göre açılır; dokununca Türkçe, iki sesli diyalog, canlandırma, kartlar, anlama testi
+    check(!$('#readHint').hidden && $('#readHint').textContent.includes(w.STORIES[0].t.en), 'Bugün kartında sıradaki okuma önerisi', $('#readHint').textContent);
+    $('#tab-oku').click();
+    let items = $$('#readList .story-item');
+    check(!$('#panel-oku').hidden && localStorage.getItem('dil-atlasi-tab') === 'oku' && items.length === w.STORIES.length && !items[0].disabled && items[1].disabled && /Ders 3/.test(items[1].textContent), 'Oku: ilk metin açık, sonrakiler ders gününe göre kilitli');
+    items[0].click();
+    let lines = $$('#readView .line'), S0 = w.STORIES[0];
+    check(lines.length === S0.s.length && lines[0].querySelector('.tx').textContent === S0.s[0][1] && lines[0].querySelector('.tr').hidden && lines[0].querySelector('.who').textContent === 'Elena', 'Metin açıldı: İngilizce cümleler, konuşmacı adı, Türkçesi gizli');
+    lines[1].querySelector('.line-text').click();
+    check(!lines[1].querySelector('.tr').hidden && lines[1].querySelector('.tr').textContent === S0.s[1][5] && lines[0].querySelector('.tr').hidden, 'Cümleye dokununca yalnızca onun Türkçesi açıldı');
+    const VV = (name, lang) => ({name, lang, voiceURI: name, default: false});
+    w.speechSynthesis.getVoices = () => [VV('Samantha', 'en-US'), VV('Daniel', 'en-GB')];
+    check(w.voiceFor('en-US', 'f').name === 'Samantha' && w.voiceFor('en-US', 'm').name === 'Daniel', 'Diyalog: kadın konuşmacıya kadın, erkeğe erkek ses');
+    w.speechSynthesis.getVoices = () => [VV('Samantha', 'en-US')];
+    check(w.utter('Hi', 'en-US', 1, 'm').pitch < 1 && w.utter('Hi', 'en-US', 1, 'f').pitch === 1, 'Erkek ses yoksa iki konuşmacı ses perdesiyle ayrılıyor');
+    w.speechSynthesis.getVoices = () => [];
+    const said = [], realSpeak = w.speechSynthesis.speak; w.speechSynthesis.speak = u => { said.push(u.text); realSpeak(u); };
+    const [listenB, roleA] = $$('#readView .story-controls .btn');
+    listenB.click();
+    check(listenB.textContent === '■ Durdur' && lines[0].classList.contains('now'), 'Hepsini dinle: ilk cümle vurgulandı, düğme Durdur oldu');
+    for (let i = 0; i < 200 && listenB.textContent !== '▶ Hepsini dinle'; i++) await wait(5);
+    check(said.join('|') === S0.s.map(r => r[1]).join('|') && !$$('#readView .line.now').length, 'Hepsini dinle: bütün cümleler sırayla okundu, bitince durdu', said.length);
+    said.length = 0; listenB.click(); listenB.click(); await wait(60);
+    check(said.length <= 1 && listenB.textContent === '▶ Hepsini dinle', 'Durdur zinciri kesti', said.length);
+    said.length = 0; roleA.click();
+    check(lines[0].classList.contains('yours') && !lines[0].querySelector('.tr').hidden && w.getComputedStyle(lines[0].querySelector('.tx')).display === 'none' && !said.length, 'Canlandır: sıra sende — Türkçesi görünüyor, hedef cümle gizli, ses yok');
+    for (let i = 0; i < 300 && roleA.textContent !== roleA.dataset.label; i++) await wait(5);
+    check(said.join('|') === S0.s.map(r => r[1]).join('|') && !$$('#readView .line.yours').length, 'Canlandır: senin cümlelerinin doğrusu da sonra okundu, bitti');
+    w.speechSynthesis.speak = realSpeak;
+    const addB = [...$$('#readView .step-actions .btn')].find(b => /Kartlara ekle/.test(b.textContent)); addB.click();
+    check(JSON.parse(localStorage.getItem('dil-atlasi-okuma')).cards['en:0'] === today && !w.dueCards('en', 500).some(c => c.id.startsWith('en:r:')), 'Anahtar kelimeler eklendi, bugün kart olarak gelmiyor');
+    const rd = JSON.parse(localStorage.getItem('dil-atlasi-okuma')); rd.cards['en:0'] = day(-1); localStorage.setItem('dil-atlasi-okuma', JSON.stringify(rd));
+    const rcards = w.dueCards('en', 500).filter(c => c.id.startsWith('en:r:0:'));
+    check(rcards.length === 5 && rcards[0].target === S0.k[0][0] && rcards[0].tr === S0.k[0][4], 'Ertesi gün 5 okuma kartı tekrarda (en:r:0:k)', rcards.length);
+    const qs = $$('#readView .quiz-q');
+    qs.forEach((q, qi) => { const a = S0.q[qi][2], opts = q.querySelectorAll('.opt'); (qi === 1 ? opts[(a + 1) % opts.length] : opts[a]).click(); });
+    check(/2\/3 doğru/.test($('#readView .quiz-result').textContent) && qs[1].querySelector('.wrong') && qs[1].querySelector('.right') && JSON.parse(localStorage.getItem('dil-atlasi-okuma')).done['en:0'].s === 2, 'Anlama testi: 2/3, yanlış ve doğru işaretlendi, sonuç kaydedildi');
+    check($('#readHint').hidden, 'Test çözülünce Bugün önerisi kalktı');
+    $('#readView .back-link').click(); items = $$('#readList .story-item');
+    check(!$('#readList').hidden && $('#readView').hidden && /✓ 2\/3/.test(items[0].textContent), 'Listeye dönüldü, sonuç görünüyor');
+    check(w.document.documentElement.scrollWidth <= w.innerWidth, 'Oku sekmesinde yatay taşma yok');
+    $('#tab-ilerleme').click();
 
     // 9) Dili sıfırla: yalnızca o dil silinir
     localStorage.setItem(`da:lesson:de:${day(-1)}`, '1');
@@ -406,6 +450,7 @@
     check(localStorage.getItem(`da:lesson:en:${day(-1)}`) === null && localStorage.getItem(`da:lesson:de:${day(-1)}`) === '1', 'Sıfırlama yalnızca seçili dili sildi');
     check(!Object.keys(JSON.parse(localStorage.getItem('dil-atlasi-srs')).cards).some(k => k.startsWith('en:')), 'Sıfırlama o dilin kartlarını sildi');
     check($('#lessonPill').textContent === 'Ders 1/30', 'Sıfırlamadan sonra Ders 1');
+    check(!JSON.parse(localStorage.getItem('dil-atlasi-okuma')).done['en:0'] && !JSON.parse(localStorage.getItem('dil-atlasi-okuma')).cards['en:0'], 'Sıfırlama o dilin okuma kayıtlarını sildi');
 
     // 9b) Kadın/erkek ses: üstteki ♀ ♂ düğmeleri; doğal aksan (dilin kendi bölgesi) öne alınır
     const V = (name, lang) => ({name, lang, voiceURI: name, default: false});

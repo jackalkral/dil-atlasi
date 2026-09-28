@@ -13,8 +13,8 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
-  <link rel="stylesheet" href="./styles.css?v=v32">
-  <script src="./theme.js?v=v32"></script>
+  <link rel="stylesheet" href="./styles.css?v=v33">
+  <script src="./theme.js?v=v33"></script>
 </head>
 <body>
   <header class="top">
@@ -30,6 +30,7 @@
 
   <nav class="tabs" role="tablist" aria-label="Bölümler">
     <button class="tab" role="tab" id="tab-bugun" aria-controls="panel-bugun" data-tab="bugun"><span class="ico" aria-hidden="true">☀️</span>Bugün</button>
+    <button class="tab" role="tab" id="tab-oku" aria-controls="panel-oku" data-tab="oku"><span class="ico" aria-hidden="true">📖</span>Oku</button>
     <button class="tab" role="tab" id="tab-yuru" aria-controls="panel-yuru" data-tab="yuru"><span class="ico" aria-hidden="true">🎧</span>Dinle</button>
     <button class="tab" role="tab" id="tab-izle" aria-controls="panel-izle" data-tab="izle"><span class="ico" aria-hidden="true">📺</span>İzle</button>
     <button class="tab" role="tab" id="tab-ilerleme" aria-controls="panel-ilerleme" data-tab="ilerleme"><span class="ico" aria-hidden="true">📈</span>İlerleme</button>
@@ -43,8 +44,16 @@
         <div class="bar" aria-hidden="true"><span id="todayBar"></span></div>
         <p class="small" id="todayHint"></p>
         <p class="small plan-hint" id="planHint"></p>
+        <p class="small read-hint" id="readHint" hidden></p>
       </div>
       <div class="steps" id="steps"></div>
+    </section>
+
+    <!-- OKU: kısa hikâyeler ve diyaloglar -->
+    <section class="panel" id="panel-oku" role="tabpanel" aria-labelledby="tab-oku" hidden>
+      <div class="panel-head"><h1>Oku ve dinle</h1><p>Derslerde öğrendiğin kelimelerle yazılmış kısa hikâyeler ve diyaloglar. Dinle, oku, diyalogda bir rolü sen canlandır.</p></div>
+      <div id="readList"></div>
+      <div id="readView" hidden></div>
     </section>
 
     <!-- DİNLE: yürürken, eller serbest -->
@@ -130,7 +139,7 @@
         <label class="switch"><input type="checkbox" id="freqToggle"> <span>Sık kelimeleri günlük derse ekle</span></label>
         <p class="small muted">Sıklık verisi: <a href="https://github.com/hermitdave/FrequencyWords" target="_blank" rel="noopener noreferrer">FrequencyWords</a> (Hermit Dave, OpenSubtitles 2018), <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.tr" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>. Uygulamadaki liste bu veriden türetilmiştir (sözlük biçimine indirildi, Türkçe anlam, okunuş ve örnek eklendi) ve aynı lisansla paylaşılır.</p>
       </div>
-      <div class="card"><h2>30 günlük rota</h2><p class="small">Ders, o dilde çalıştığın her yeni günde bir sonrakine geçer. Gün atlarsan ders kaçmaz.</p><ol class="lesson-list" id="lessonList"></ol></div>
+      <div class="card"><h2>30 günlük yol haritası</h2><p class="small">Ders, o dilde çalıştığın her yeni günde bir sonrakine geçer; gün atlarsan ders kaçmaz. 📖 💬 işaretli derste Oku sekmesinde yeni bir metin açılır. Hedefler gerçekçidir: 30 derste akıcılık değil, sağlam bir A1 başlangıcı.</p><ol class="roadmap" id="lessonList"></ol></div>
       <div class="card">
         <h2>Odak sayacı</h2>
         <div class="timer-row"><div><div class="timer-display" id="timerDisplay">25:00</div>
@@ -186,16 +195,17 @@
   <div class="toast" id="toast" role="status" hidden></div>
   <div class="update-banner" id="updateBanner" role="status" hidden><span>Yeni sürüm hazır.</span><button class="btn" id="updateReload" type="button">Yenile</button></div>
 
-  <script src="./content/en.js?v=v32"></script>
-  <script src="./content/fr.js?v=v32"></script>
-  <script src="./content/it.js?v=v32"></script>
-  <script src="./content/de.js?v=v32"></script>
-  <script src="./content/media.js?v=v32"></script>
-  <script src="./content/emoji.js?v=v32"></script>
-  <script src="./content/freq-en.js?v=v32"></script>
-  <script src="./content/freq-fr.js?v=v32"></script>
-  <script src="./content/freq-it.js?v=v32"></script>
-  <script src="./content/freq-de.js?v=v32"></script>
-  <script src="./app.js?v=v32"></script>
+  <script src="./content/en.js?v=v33"></script>
+  <script src="./content/fr.js?v=v33"></script>
+  <script src="./content/it.js?v=v33"></script>
+  <script src="./content/de.js?v=v33"></script>
+  <script src="./content/media.js?v=v33"></script>
+  <script src="./content/emoji.js?v=v33"></script>
+  <script src="./content/freq-en.js?v=v33"></script>
+  <script src="./content/freq-fr.js?v=v33"></script>
+  <script src="./content/freq-it.js?v=v33"></script>
+  <script src="./content/freq-de.js?v=v33"></script>
+  <script src="./content/stories.js?v=v33"></script>
+  <script src="./app.js?v=v33"></script>
 </body>
 </html>

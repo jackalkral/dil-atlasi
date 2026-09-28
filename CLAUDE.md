@@ -7,7 +7,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 ## Mevcut mimari
 
 - Bağımlılıksız HTML, CSS ve JavaScript
-- Arayüz `index.html`, stil `styles.css`, mantık `app.js`; içerik `content/{en,fr,it,de}.js` (`window.LESSONS`) ve `content/media.js` (`window.MEDIA`)
+- Arayüz `index.html`, stil `styles.css`, mantık `app.js`; içerik `content/{en,fr,it,de}.js` (`window.LESSONS`), `content/media.js` (`window.MEDIA`) ve `content/stories.js` (`window.STORIES`)
 - PWA manifesti ve çevrimdışı uygulama kabuğu
 - İlerleme için yalnızca `localStorage`
 - Telaffuz için Web Speech API (`speechSynthesis`)
@@ -26,7 +26,9 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 - `content/emoji.js`: yalnızca somut kelimeler için `"ders:kelime"` → emoji; dört dilde kelime sırası aynı olduğu için tek eşleme. Emoji Türkçe ipucunun yanında ek ipucudur, onun yerine geçmez.
 - İlerleme ölçüsü: kutu ≥ 2 (7+ gün aralık) kartların hatırlama oranı `dil-atlasi-srs.stats[dil] = {ok, n}`.
 - `dil-atlasi-sifirlama-2026-09` tek seferlik sıfırlama bayrağıdır; kaldırma, yoksa kullanıcının verisi yeniden silinir.
-- Sekmeler bağlama göre: Bugün (iş molası), Dinle (yürüyüş, eller serbest), İzle (akşam TV), İlerleme.
+- Sekmeler bağlama göre: Bugün (iş molası), Oku (hikâye/diyalog), Dinle (yürüyüş, eller serbest), İzle (akşam TV), İlerleme.
+- Oku (Ewa/Duolingo fikirleri, içerik özgün): `content/stories.js` 10 metin (5 hikâye, 5 diyalog), dört dilde paralel + Türkçe; `{day, kind, t, sp?, s:[[konuşmacı, en, fr, it, de, tr]], k: 5 × [en, fr, it, de, tr], q: 3 × [soru, seçenekler, doğru]}`. Metin, ders günü `day`'e gelince açılır (o güne kadarki kelimelerle yazıldı). Cümleye dokununca Türkçesi açılır; diyalogda konuşmacılar `sp` cinsiyetine göre `voiceFor(lang, 'f'|'m')` ile okunur (o cinsiyette ses yoksa perde ile ayrılır). "🎭 Sen X ol" canlandırma: diğer rol okunur, senin cümlende Türkçe görünür, hedef gizlenir, beklenir, sonra doğrusu okunur (`playStory`, `audioRun` ile durur). Durum `dil-atlasi-okuma` (`{v:1, done:{"fr:3":{d, s}}, cards:{"fr:3": tarih}}`); anahtar kelimeler eklendiği günün ertesinden kart olur (`dil:r:metin:kelime`). Metin sırasını değiştirme, yenisini sona ekle. Bugün kartında sıradaki okuma önerilir (`#readHint`). Yedekte `reading`; dil sıfırlama o dilin okuma kaydını siler.
+- İlerleme'deki 30 günlük yol haritası (`#lessonList.roadmap`): "Şu an buradasın", okuma açılan dersler ve 7/14/21/30. derslerden sonra gerçekçi hedefler (`MILESTONES`). Akıcılık vaadi yok; hedef sağlam bir A1 başlangıcı.
 - Bugün aşamaları görev kodlarına bağlı: `review` = tekrar kartları, `lesson` = kelime + cümle + cümle kurma, `shadow` = ses çalışması (bitince kendiliğinden işaretlenir), `speak` = telaffuz testi + konuşma + ChatGPT/Claude.
 - Ders günü = o dilde bugünden önce çalışılan gün sayısı + 1 (`getLessonDay`); ayrı anahtar yoktur.
 - Aralıklı tekrar `dil-atlasi-srs` (v2); kart kimliği `dil:dersSırası:w|s + sıra`. Derslerin kelime/cümle sırasını değiştirme, yenisini sona ekle.
@@ -48,7 +50,7 @@ Dil Atlası, Ahmet'in İngilizce, Fransızca, İtalyanca ve Almanca öğrenmesin
 
 1. `dil-atlasi-active` aktif dil anahtarını koru.
 2. `da:{task}:{lang}:{date}` görev anahtarlarını taşımadan veya geriye uyumluluk sağlamadan değiştirme.
-3. Dil kodları `en`, `fr`, `it`, `de`; görev kodları `review`, `lesson`, `shadow`, `speak` olarak kalmalı. `dil-atlasi-timer`, `dil-atlasi-srs` ve `dil-atlasi-tab` anahtarları da korunmalı.
+3. Dil kodları `en`, `fr`, `it`, `de`; görev kodları `review`, `lesson`, `shadow`, `speak` olarak kalmalı. `dil-atlasi-timer`, `dil-atlasi-srs`, `dil-atlasi-tab` ve `dil-atlasi-okuma` anahtarları da korunmalı.
 4. Kullanıcı verisini açık onay olmadan haricî bir servise gönderme.
 5. Ücretsiz kaynak bağlantılarını koru ve ücretli hizmeti ana akışa yerleştirme.
 6. Mobil erişilebilirliği, klavye kullanımını ve düşük hareket tercihini koru.

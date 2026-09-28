@@ -6,11 +6,12 @@ Canlı adres: https://jackalkral.github.io/dil-atlasi/
 
 ## Nasıl çalışır?
 
-Üstten dili seç, alttaki dört sekmeyi kullan:
+Üstten dili seç, alttaki beş sekmeyi kullan:
 
 | Sekme | Ne zaman | İçerik |
 |---|---|---|
 | **Bugün** | İşte kısa molalarda | 4 aşamalı yol: ① Tekrar kartları ② Kelimeler + cümleler + cümle kurma ③ Dinle ve tekrar et ④ Konuş (telaffuz testi, kendi kendine, ChatGPT/Claude sesli sohbet) |
+| **Oku** | Kahve molası, akşam | Derslerle açılan kısa hikâyeler ve iki sesli diyaloglar: cümleye dokun → Türkçesi, rol canlandırma, anahtar kelimeleri tekrar kartlarına ekle, 3 soruluk anlama testi |
 | **Dinle** | Köpek gezdirirken, yolda | Eller serbest ses çalışması: hedef dil → ara (sen tekrar et) → hedef dil; Türkçe anlam yalnızca yazılı; podcast ve ses kursları |
 | **İzle** | Akşam TV karşısında | Seviyeye göre video/dizi önerileri, hedef dilde altyazı rehberi |
 | **İlerleme** | — | Günlük/haftalık özet, dil başına haftalık plan ve hedef, seri, 28 gün, 30 günlük rota, odak sayacı, yöntem, yedekleme |
@@ -29,6 +30,7 @@ styles.css            # Stil
 app.js                # Uygulama mantığı
 content/{en,fr,it,de}.js  # 30'ar derslik içerik: t başlık, n ipucu, w [kelime, Türkçe, okunuş], p [cümle, Türkçe]
 content/media.js      # Dinle ve İzle sekmelerinin doğrulanmış kaynakları
+content/stories.js    # Oku sekmesinin özgün hikâye ve diyalogları (4 dil + Türkçe)
 sw.js                 # Çevrimdışı uygulama kabuğu ve güncelleme bildirimi
 fonts/                # Inter yazı tipi (SIL OFL 1.1, lisans: fonts/OFL.txt)
 manifest.webmanifest, icons/
@@ -63,7 +65,7 @@ Tarayıcı testi: yerel sunucu açıkken `http://localhost:4173/tests/smoke.html
 
 Tüm ilerleme tarayıcının `localStorage` alanında tutulur:
 
-- Aktif dil: `dil-atlasi-active` · Açık sekme: `dil-atlasi-tab`
+- Aktif dil: `dil-atlasi-active` · Açık sekme: `dil-atlasi-tab` · Okuma: `dil-atlasi-okuma`
 - Tema: `dil-atlasi-tema` (`light`, `dark`; yoksa sistem)
 - Aşamalar: `da:{görev}:{dil}:{YYYY-MM-DD}` — görevler `review`, `lesson`, `shadow`, `speak`; diller `en`, `fr`, `it`, `de`
 - Sayaç süresi: `dil-atlasi-timer` (`25`, `45`, `60`)
